@@ -46,7 +46,9 @@ fi
 # Step 1: Pull latest changes
 echo -e "${YELLOW}📦 Step 1: Pulling latest changes...${NC}"
 cd "$PROJECT_DIR"
-git pull
+git fetch origin main
+git checkout main
+git pull --ff-only origin main
 
 # Step 2: Build and deploy frontend
 echo -e "${YELLOW}🔨 Step 2: Building and deploying frontend...${NC}"
