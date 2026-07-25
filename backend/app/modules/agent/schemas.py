@@ -103,9 +103,32 @@ class AgentAdminListResponse(BaseModel):
 class RichBlock(BaseModel):
     """Rich UI block rendered alongside Markdown."""
 
-    type: Literal["card", "table", "markdown"]
+    type: Literal["card", "table", "markdown", "chart"]
     title: str | None = None
     data: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChartPoint(BaseModel):
+    """Single (x, y) sample within a chart series."""
+
+    x: str | float | int
+    y: float | int
+
+
+class ChartSeries(BaseModel):
+    """Named series of points within a chart block."""
+
+    name: str
+    points: list[ChartPoint]
+
+
+class ChartBlockData(BaseModel):
+    """Payload validated from a tool's `chart` convention (plan 008 dec. C2/C3)."""
+
+    chartType: Literal["line", "bar"]
+    xLabel: str | None = None
+    yLabel: str | None = None
+    series: list[ChartSeries]
 
 
 class AgentRunStepResponse(BaseModel):

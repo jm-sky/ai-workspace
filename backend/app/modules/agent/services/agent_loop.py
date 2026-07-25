@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
+from pydantic import ValidationError
 
 from app.core.config import settings
 from app.modules.agent.exceptions import (
@@ -15,6 +16,7 @@ from app.modules.agent.exceptions import (
     AgentNotConfiguredError,
     AgentToolError,
 )
+from app.modules.agent.schemas import ChartBlockData
 from app.modules.agent.tools.base import AgentToolRegistry
 from app.modules.ai.utils.models_config import calculate_cost
 
@@ -257,6 +259,43 @@ def _build_blocks_from_trace(
         blocks.extend(_jira_360_blocks(steps_trace))
     else:
         blocks.extend(_github_workspace_blocks(steps_trace))
+
+    blocks.extend(_chart_blocks(steps_trace))
+
+    return blocks
+
+
+def _chart_blocks(steps_trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert tool results carrying a `chart` key into chart blocks.
+
+    Convention-based (plan 008 dec. C3): any tool, on any agent, can opt in
+    by returning `{"chart": {...}}` matching `ChartBlockData` — no dedicated
+    `render_chart` tool needed for MVP.
+    """
+    blocks: list[dict[str, Any]] = []
+
+    for step in steps_trace:
+        if step.get("stepType") != "tool_result":
+            continue
+        output = step.get("outputData") or {}
+        if "error" in output:
+            continue
+        chart = output.get("chart")
+        if not isinstance(chart, dict):
+            continue
+        try:
+            data = ChartBlockData.model_validate(chart)
+        except ValidationError:
+            logger.warning("Ignoring malformed chart payload from tool %s", step.get("name"))
+            continue
+
+        blocks.append(
+            {
+                "type": "chart",
+                "title": chart.get("title"),
+                "data": data.model_dump(),
+            }
+        )
 
     return blocks
 

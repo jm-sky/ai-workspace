@@ -71,10 +71,29 @@ export interface IAgentChatRequest {
   attachmentIds?: string[]
 }
 
+export type RichBlockType = 'card' | 'table' | 'markdown' | 'chart'
+
 export interface IRichBlock {
-  type: 'card' | 'table' | 'markdown'
+  type: RichBlockType
   title?: string | null
   data: Record<string, unknown>
+}
+
+export interface IChartPoint {
+  x: string | number
+  y: number
+}
+
+export interface IChartSeries {
+  name: string
+  points: IChartPoint[]
+}
+
+export interface IChartBlockData {
+  chartType: 'line' | 'bar'
+  xLabel?: string | null
+  yLabel?: string | null
+  series: IChartSeries[]
 }
 
 export interface IAgentRunStep {

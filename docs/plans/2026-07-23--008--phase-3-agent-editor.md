@@ -1,6 +1,6 @@
 # Plan 008 — Faza 3: Konfigurowalność (edytor agentów + routing + bloki)
 
-**Status:** `in progress`  
+**Status:** `done`  
 **Data:** 2026-07-23  
 **Obszar:** backend (`agent`, `tenants`) + frontend (`workspace`, `settings`)  
 **Referencje:** MVP dec. #9–11, #14; issue [#023](../issues/2026-07-20--023--agent-routing.md); research [#006](../research/2026-07-08--006--ai-kancelaria-comparison.md) (skille), [#007](../research/2026-07-10--007--chatgpt-settings-reference.md) (custom instructions)
@@ -11,7 +11,7 @@
 |-------|--------|--------|
 | **A** | ✅ | Rejestr, `ExplicitAgentRouter`, picker, `GET /agent/agents`, `routingReason` w metadata |
 | **B** | ✅ | Tabela `agents`, seed, CRUD tenant owner/admin, `/settings/agents`, runtime z DB |
-| **C** | ⬜ | Chart blocks — jeszcze nie |
+| **C** | ✅ | Chart blocks — `RichBlock.type="chart"`, konwencja `{"chart": {...}}` w wyniku toola, `AgentChartBlock.vue` (Unovis/`ui/chart`) |
 
 Rozstrzygnięte: B7 tenant-admin; seed per tenant; trzeci agent `general`.
 
@@ -234,8 +234,10 @@ Helper: `_require_tenant_agent_admin(tenant_ctx)` — `role in ("owner", "admin"
 
 ### Kryteria done C
 
-- [ ] Przynajmniej line chart renderuje się w czacie z mock/fixture bloku  
-- [ ] Nie psuje card/table  
+- [x] Przynajmniej line chart renderuje się w czacie z mock/fixture bloku  
+- [x] Nie psuje card/table  
+
+Zrealizowane inaczej niż w pierwotnym szkicu C4: gotowa lib **`@unovis/ts`/`@unovis/vue`** była już zależnością repo (razem z nieużywanym dotąd scaffoldem `src/components/ui/chart/`) — użyto jej zamiast dokładać nową zależność. Bar chart renderuje się przez **jeden** `VisGroupedBar` z tablicowymi `y`/`color` (osobne instancje per seria nakładałyby się na siebie). Zweryfikowano wizualnie w przeglądarce (line + grouped bar + card + table na jednej stronie, light i dark) przez tymczasowy debug route (usunięty przed commitem).
 
 ---
 
@@ -281,7 +283,7 @@ Helper: `_require_tenant_agent_admin(tenant_ctx)` — `role in ("owner", "admin"
 
 ## Kryteria done (cała Faza 3 w tym planie)
 
-- [ ] Chunk A–C spełniają swoje kryteria  
-- [ ] Dec. #9 (jawny wybór) + #10–11 (obiekt Agent w DB + edytor tenant-admin) + #14 (chart) pokryte w MVP-sense  
-- [ ] Issue #023 `done`  
-- [ ] Ten plan `done`; wiersz w `plans/README.md`  
+- [x] Chunk A–C spełniają swoje kryteria  
+- [x] Dec. #9 (jawny wybór) + #10–11 (obiekt Agent w DB + edytor tenant-admin) + #14 (chart) pokryte w MVP-sense  
+- [x] Issue #023 `done`  
+- [x] Ten plan `done`; wiersz w `plans/README.md`  
