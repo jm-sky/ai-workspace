@@ -69,9 +69,14 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                     content={"detail": "CSRF token missing or invalid"},
                 )
 
+        issued_token = None
+        if CSRF_COOKIE_NAME not in request.cookies:
+            issued_token = token_urlsafe(32)
+            request.state.csrf_token = issued_token
+
         response = await call_next(request)
 
-        if CSRF_COOKIE_NAME not in request.cookies:
-            set_csrf_cookie(response, token_urlsafe(32))
+        if issued_token is not None:
+            set_csrf_cookie(response, issued_token)
 
         return response

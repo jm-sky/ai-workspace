@@ -37,6 +37,7 @@ Indeks: [`research/README.md`](research/README.md). Skrót:
 - [`research/2026-07-06--005--model-selection.md`](research/2026-07-06--005--model-selection.md) — wybór domyślnego modelu na OpenRouter (Gemini Flash).
 - [`research/2026-07-08--006--ai-kancelaria-comparison.md`](research/2026-07-08--006--ai-kancelaria-comparison.md) — porównanie z repo siostrzanym ai-kancelaria: co warto przenieść.
 - [`research/2026-07-10--007--chatgpt-settings-reference.md`](research/2026-07-10--007--chatgpt-settings-reference.md) — referencja UX ustawień aplikacji AI (ChatGPT) + architektura pamięci wielopoziomowej.
+- [`research/2026-07-25--008--embeddings-rag-second-brain.md`](research/2026-07-25--008--embeddings-rag-second-brain.md) — **Faza 4**: embeddingi multilingual/PL, chunking, hybrid + reranker, eval RAG, memory graph, Second Brain (LightRAG odrzucony).
 
 ## Skrót decyzji (z `MVP.md`)
 

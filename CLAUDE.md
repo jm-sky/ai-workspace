@@ -13,6 +13,7 @@ Chat-first platforma agentowa: OpenRouter + własna pętla tool-calling, integra
 | Wdrożenie Caddy (VPS) | `docs/deployment/CADDY_DEPLOYMENT.md` |
 | Konwencje kodu | `.cursorrules` |
 | Porównanie z ai-kancelaria (co przenieść) | `docs/research/2026-07-08--006--ai-kancelaria-comparison.md` |
+| Faza 4 — embeddingi, RAG, Second Brain (research) | `docs/research/2026-07-25--008--embeddings-rag-second-brain.md` |
 | Kontekst serwera (nie commituj) | `CLAUDE.local.md` |
 
 **Nie zmieniaj decyzji architektonicznych z `MVP.md` bez potwierdzenia użytkownika.**
@@ -56,7 +57,8 @@ Frontend dev: `pnpm dev` (port 5176, proxy `/api` → `localhost:8003`).
 | **Faza 1.5** | Design pass (`DESIGN.md`: ChatGPT + Linear) na czacie i widoku 360° | 🔄 w toku |
 | Faza 2 | Gmail MCP (Teams odłożony — brak dostępu) | ✅ v1 readonly |
 | Faza 3 | Edytor agentów, router, bogate bloki | — |
-| Faza 4 | Pamięć + RAG (pgvector) — embeddingi + memory_search/save już częściowo gotowe z Fazy 1 | 🔄 częściowo |
+| Faza 4 | Pamięć + RAG (pgvector). Fundament ✅ (memory CRUD+injection, chunki, `rag_search`, ACL). Jakość — plan [009](docs/plans/2026-07-25--009--phase-4-retrieval-quality.md): embeddingi multilingual, hybrid+RRF, reranker, eval, UI Knowledge | 🔄 częściowo |
+| Faza 4.5 | Second Brain — wiki + bibliotekarz, pgvector-only (plan [010](docs/plans/2026-07-25--010--phase-4-5-second-brain-wiki.md)); memory graph / Graphiti bramkowany (plan [011](docs/plans/2026-07-25--011--memory-graph-graphiti.md)) | — |
 | Faza 5 | Auto-router, tool search, onboarding tenantów | — |
 | Faza 6 (kandydat) | Zdalne agenty wykonawcze (np. Claude Code na własnych serwerach) — patrz `MVP.md` Otwarte punkty | — |
 
@@ -71,7 +73,8 @@ Scenariusz MVP (od 2026-07-11): otwarty multi-tool workspace (ChatGPT/Claude-lik
 | `workspace_config` | Kaskada App→Tenant→Team→User |
 | `integrations` | Szyfrowany magazyn tokenów OAuth (Jira, GitLab, GitHub, …) |
 | `agent` | Pętla agenta, Task/Run + trace, SSE, narzędzia (jira/gitlab/github/memory) |
-| `memory` | Pamięć semantyczna — pgvector, embeddingi, memory_search/save (Faza 4, częściowo gotowe) |
+| `memory` | Pamięć życiowa — pgvector, embeddingi, `memory_search`/`memory_save`/`memory_update` + auto-injection |
+| `rag` | Document RAG — `rag_documents`/`document_chunks`, chunker, `PgChunkRetriever` (ACL przed rankingiem), `rag_search` |
 | `mcp` | Cienkie klienty MCP-style per provider (obecnie GitHub) |
 | `admin` | Panel/API admina (docelowo „Control Tower") |
 | `settings` | Preferencje użytkownika |
