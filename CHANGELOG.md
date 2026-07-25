@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Agent**: chart rich block (`RichBlock.type="chart"`) alongside card/table/markdown — any tool can opt in via a `{"chart": {...}}` convention in its result; rendered with Unovis (Faza 3, plan 008 — now `done`)
+- **RAG**: embedding versioning (`embedding_model`/`embedding_version`), batched/retried/cached `EmbeddingService`, hybrid dense+lexical search (RRF), pluggable `Reranker` (Noop default, Hosted behind a flag), structure-aware markdown chunker, async ingest (`POST /rag/documents` → 202/pending, background embedding), attachment ingest (`POST /rag/documents/from-attachment`)
+- **Memory**: `memory_save` dedupes near-identical content (`AI_MEMORY_DEDUPE_THRESHOLD`), returning `duplicateOf` instead of writing a duplicate row
+- **CLI**: `python -m cli rag reembed [--batch] [--dry-run]` — resumable re-embed after a model change
+- **Workspace**: Knowledge page (`/workspace/knowledge`) — list/add/preview/delete RAG documents with live status
+- **Evals**: `backend/evals/rag/` — retrieval-quality harness (hit rate, MRR, context precision/recall) against a 34-question PL/EN golden set (Faza 4, plan 009 — infrastructure done, model choice pending a live eval run)
+
 ---
 
 ## [2.49.0] - 2026-07-23

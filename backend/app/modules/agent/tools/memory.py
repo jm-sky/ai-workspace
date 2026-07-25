@@ -136,7 +136,7 @@ class MemorySaveTool(AgentTool):
         agent_key = self.agent_key if scope == MemoryScope.AGENT.value else None
         session_id = self.session_id if scope == MemoryScope.SESSION.value else None
 
-        entry = await self.memory_service.create_entry(
+        entry, duplicate_of = await self.memory_service.create_entry(
             tenant_ctx=self.tenant_ctx,
             content=content,
             scope=scope,
@@ -144,6 +144,12 @@ class MemorySaveTool(AgentTool):
             session_id=session_id,
             source=MemorySource.AGENT.value,
         )
+        if duplicate_of is not None:
+            return {
+                "saved": False,
+                "duplicateOf": duplicate_of,
+                "message": "Near-identical memory already exists; use memory_update to refine it instead.",
+            }
         return {"saved": True, "id": entry.id, "scope": entry.scope}
 
 

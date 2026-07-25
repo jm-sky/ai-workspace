@@ -36,8 +36,30 @@ class MemoryService:
         session_id: str | None = None,
         source: str = MemorySource.USER.value,
         metadata: dict[str, Any] | None = None,
-    ) -> MemoryEntryResponse:
+    ) -> tuple[MemoryEntryResponse, str | None]:
+        """Create a memory entry, deduping against near-identical content.
+
+        Returns ``(entry, duplicate_of_id)``. When content is a near-duplicate
+        of an existing entry (cosine similarity >= AI_MEMORY_DEDUPE_THRESHOLD,
+        scoped like retrieval by agent_key/session_id), no new row is written
+        and ``duplicate_of_id`` carries the existing entry's id (plan 009
+        dec. #17) — `content` is unchanged from earlier idempotent writes.
+        """
         embedding = await self._embedder().embed(content)
+
+        existing = await self.repo.search_similar(
+            tenant_id=tenant_ctx.tenant_id,
+            user_id=tenant_ctx.user_id,
+            embedding=embedding,
+            agent_key=agent_key,
+            session_id=session_id,
+            limit=1,
+            min_similarity=settings.ai.memory_dedupe_threshold,
+        )
+        if existing:
+            duplicate_entry, similarity = existing[0]
+            return self._to_response(duplicate_entry, similarity=similarity), duplicate_entry.id
+
         entry = await self.repo.create(
             tenant_id=tenant_ctx.tenant_id,
             user_id=tenant_ctx.user_id,
@@ -50,7 +72,7 @@ class MemoryService:
             metadata=metadata,
         )
         await self.db.commit()
-        return self._to_response(entry)
+        return self._to_response(entry), None
 
     async def search(
         self,

@@ -90,12 +90,17 @@ services:
       - ./backend/app:/app/app:rw,delegated
       - ./backend/scripts:/app/scripts:rw,delegated
       - ./backend/tests:/app/tests:rw,delegated
+      - ./backend/evals:/app/evals:rw,delegated
       - ./backend/migrations:/app/migrations:rw,delegated
       - ./backend/main.py:/app/main.py:rw,delegated
       - ./backend/cli:/app/cli:ro,delegated
       - ./backend/cli.py:/app/cli.py:ro,delegated
       - ./backend/pyproject.toml:/app/pyproject.toml:ro,delegated
       - ./backend/images:/app/images:ro,delegated
+      # Read-only corpus for the RAG eval harness (backend/evals/rag) — the golden
+      # set references these paths, so the running container needs to see them.
+      - ./docs:/repo/docs:ro,delegated
+      - ./CLAUDE.md:/repo/CLAUDE.md:ro,delegated
       # Mount uploads directory for persistent file storage
       - ai_workspace_uploads:/app/uploads
     logging:

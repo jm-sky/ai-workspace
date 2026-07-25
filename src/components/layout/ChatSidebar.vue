@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Brain, Info, Settings as SettingsIcon } from 'lucide-vue-next'
+import { BookOpen, Brain, Info, Settings as SettingsIcon } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { RouterLink, useRoute } from 'vue-router'
 import {
@@ -83,6 +83,24 @@ const handleNewChat = async () => {
             >
               <Brain class="size-4" />
               <span>{{ t('workspace.nav.memory') }}</span>
+            </SidebarMenuButton>
+          </RouterLink>
+        </SidebarMenuItem>
+
+        <SidebarMenuItem>
+          <RouterLink
+            v-slot="{ href, navigate, isActive }"
+            :to="WorkspaceRoutePath.Knowledge"
+            custom
+          >
+            <SidebarMenuButton
+              :is-active="isActive || route.path.startsWith(WorkspaceRoutePath.Knowledge)"
+              as="a"
+              :href="href"
+              @click="navigate"
+            >
+              <BookOpen class="size-4" />
+              <span>{{ t('workspace.nav.knowledge') }}</span>
             </SidebarMenuButton>
           </RouterLink>
         </SidebarMenuItem>

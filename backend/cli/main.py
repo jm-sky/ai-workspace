@@ -74,6 +74,12 @@ COMMAND_GROUPS = {
             "purge-orphans": "Delete unbound chat attachments older than TTL",
         },
     },
+    "rag": {
+        "name": "Document RAG",
+        "commands": {
+            "reembed": "Re-embed document_chunks behind the current AI_EMBEDDING_VERSION",
+        },
+    },
 }
 
 # Commands that require arguments (command_path -> list of argument prompts)

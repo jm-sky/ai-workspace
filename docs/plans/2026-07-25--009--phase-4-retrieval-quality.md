@@ -1,6 +1,6 @@
 # Plan 009 — Faza 4: jakość retrievalu (embeddingi, hybrid, reranker, eval)
 
-**Status:** `planned`
+**Status:** `verification needed`
 **Data:** 2026-07-25
 **Obszar:** backend (`rag`, `memory`, `agent/tools`, `common`, `cli`, `evals`) + frontend (strona Knowledge)
 **Parent:** [004 Second Brain](2026-07-23--004--second-brain-wiki.md)
@@ -9,6 +9,24 @@
 **Następne:** [010 Second Brain wiki](2026-07-25--010--phase-4-5-second-brain-wiki.md) · [011 Memory graph](2026-07-25--011--memory-graph-graphiti.md)
 
 > **Wykonawca:** Claude Sonnet. Ten plan jest samowystarczalny — wszystkie potrzebne ścieżki, nazwy i progi są niżej. Research 008 czytaj tylko po uzasadnienia „dlaczego".
+
+## Postęp implementacji (2026-07-25)
+
+Cała infrastruktura ze wszystkich 11 todo zaimplementowana i przetestowana (backend: mocki + realny Postgres/pgvector do walidacji SQL hybrydy/ACL/RRF; frontend: real browser end-to-end przez `/workspace/knowledge` z prawdziwym logowaniem). **Brakuje jednego kroku, którego nie dało się wykonać w tym środowisku: brak żywego `OPENROUTER_API_KEY`, więc nie przeprowadzono realnego pomiaru na złotym zbiorze ani wyboru finalnego modelu embeddingów/rerankera** — dlatego status `verification needed`, nie `done`.
+
+- `embed-versioning` ✅ — migracja `065` (upgrade/downgrade zielone na realnym Postgresie)
+- `embed-swap` ✅ — `embed_batch()` + retry (429/5xx, backoff) + cache Redis; `AI_EMBEDDING_*` z aliasem do `AI_MEMORY_EMBEDDING_*`
+- `reembed-cli` ✅ — `python -m cli rag reembed [--batch] [--dry-run]`, wznawialny/idempotentny (testy jednostkowe; nie uruchomiony na prawdziwym drugim modelu)
+- `hybrid-search` ✅ — dense+`ts_rank_cd`+RRF(`k=60`), FTS fallback `simple`; **ACL w obu gałęziach zweryfikowane na żywym Postgresie** (nie tylko mockiem)
+- `reranker-iface` ✅ — `Reranker` Protocol, `NoopReranker` domyślny, `HostedReranker` (degradacja na błędzie, nie przetestowana z realnym dostawcą)
+- `chunker-v2` ✅ — `split_markdown()` (nagłówki, fence, fallback dla oversized)
+- `async-ingest` ✅ — `POST /rag/documents` → 202/pending; `BackgroundTasks`; zweryfikowane end-to-end w przeglądarce (pending → failed z realnym komunikatem błędu braku klucza)
+- `attachment-ingest` ✅ — `POST /rag/documents/from-attachment`, ACL przez `ChatAttachmentService.get_owned`
+- `memory-dedupe` ✅ — `AI_MEMORY_DEDUPE_THRESHOLD`, `memory_save` zwraca `duplicateOf`
+- `ui-knowledge` ✅ — `/workspace/knowledge`, polling statusu, podgląd chunków, usuwanie — zweryfikowane w przeglądarce
+- `eval-harness` ✅ (infrastruktura) — `backend/evals/rag/`: 34 pytania (18 EN/16 PL) z realnego korpusu `docs/`+`CLAUDE.md`, runner liczy 4 metryki retrievalu (hit_rate/MRR/context precision/recall — **nie** pełny RAGAS/DeepEval z LLM-judge, patrz README dla uzasadnienia), progi placeholder. **Nieuruchomiony na żywo** — wymaga klucza.
+- `docs-env` ✅ — `.env.example` kompletny
+- **Otwarte przed `done`:** uruchomić `backend/evals/rag/runner.py` z realnym kluczem, porównać `cohere/embed-v4` vs `google/gemini-embedding-001` (dec. #1), ustawić progi na zmierzonym baseline, opcjonalnie włączyć `HostedReranker` i przetestować z realnym dostawcą.
 
 ## Cel
 
@@ -286,16 +304,16 @@ Kolejność ma znaczenie — `eval-harness` przed `embed-swap`, bo bez pomiaru w
 
 ## Kryteria done
 
-- [ ] Migracja `065` (`upgrade`/`downgrade`) zielona
-- [ ] `embed_batch` + retry + cache; ingest nie robi N sekwencyjnych roundtripów
-- [ ] `python -m cli rag reembed` przechodzi dwukrotnie (drugi raz: 0 wierszy)
-- [ ] Hybrid + RRF działa; testy ACL zielone **osobno dla gałęzi dense i lexical**
-- [ ] `Reranker` Protocol; `NoopReranker` default; `HostedReranker` degraduje na błędzie
-- [ ] `split_markdown()` + testy granic
-- [ ] `POST /rag/documents` → 202, status dochodzi do `ready`
-- [ ] Załącznik czatu → dokument RAG (`source_type="attachment"` przestaje być martwym kodem)
-- [ ] `memory_save` nie tworzy duplikatów powyżej progu
-- [ ] Strona Knowledge działa (lista / dodanie / podgląd / usunięcie)
-- [ ] `backend/evals/rag/` zwraca 4 metryki; bramka CI potrafi obciąć build
-- [ ] `.env.example` kompletny
-- [ ] `MVP.md`: otwarty punkt „Model embeddingów + reranker" → rozstrzygnięcie
+- [x] Migracja `065` (`upgrade`/`downgrade`) zielona — na realnym Postgresie
+- [x] `embed_batch` + retry + cache; ingest nie robi N sekwencyjnych roundtripów
+- [x] `python -m cli rag reembed` przechodzi dwukrotnie (drugi raz: 0 wierszy) — testy jednostkowe; nie uruchomiony z realną zmianą modelu
+- [x] Hybrid + RRF działa; testy ACL zielone **osobno dla gałęzi dense i lexical** — zweryfikowane na realnym Postgresie
+- [x] `Reranker` Protocol; `NoopReranker` default; `HostedReranker` degraduje na błędzie
+- [x] `split_markdown()` + testy granic
+- [x] `POST /rag/documents` → 202, status dochodzi do `ready` **albo `failed`** — zweryfikowane end-to-end w przeglądarce (failed path, brak klucza w tym środowisku)
+- [x] Załącznik czatu → dokument RAG (`source_type="attachment"` przestaje być martwym kodem)
+- [x] `memory_save` nie tworzy duplikatów powyżej progu
+- [x] Strona Knowledge działa (lista / dodanie / podgląd / usunięcie) — zweryfikowane w przeglądarce
+- [x] `backend/evals/rag/` zwraca 4 metryki; bramka CI potrafi obciąć build — metryki retrieval-only (nie pełny RAGAS/DeepEval, patrz README); runner nieuruchomiony na żywo (brak klucza)
+- [x] `.env.example` kompletny
+- [ ] `MVP.md`: otwarty punkt „Model embeddingów + reranker" → rozstrzygnięcie **ostateczne** — kierunek już zapisany w MVP.md (2026-07-25, przed tym planem); wybór finalnego modelu nadal wymaga uruchomienia `eval-harness` z żywym kluczem (blocker tego planu, patrz „Postęp implementacji")

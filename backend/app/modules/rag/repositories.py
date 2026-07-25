@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.embeddings import EmbeddingService
 from app.common.id_utils import generate_id
+from app.core.config import settings
 from app.modules.rag.db_models import DocumentChunk, RagDocument
+from app.modules.rag.fts import resolve_fts_config
 from app.modules.rag.types import RetrievalAcl, RetrievalHit
 
 
@@ -27,6 +29,7 @@ class RagRepository:
         source_type: str = "paste",
         source_ref: str | None = None,
         metadata: dict[str, Any] | None = None,
+        status: str = "ready",
     ) -> RagDocument:
         now = datetime.now(UTC)
         doc = RagDocument(
@@ -37,12 +40,34 @@ class RagRepository:
             source_type=source_type,
             source_ref=source_ref,
             metadata_=metadata,
+            status=status,
             created_at=now,
             updated_at=now,
         )
         self.db.add(doc)
         await self.db.flush()
         return doc
+
+    async def set_document_status(
+        self,
+        document_id: str,
+        *,
+        status: str,
+        error: str | None = None,
+    ) -> None:
+        await self.db.execute(
+            text("""
+                UPDATE rag_documents
+                SET status = :status, error = :error, updated_at = :updated_at
+                WHERE id = :id
+                """),
+            {
+                "id": document_id,
+                "status": status,
+                "error": error,
+                "updated_at": datetime.now(UTC),
+            },
+        )
 
     async def insert_chunk(
         self,
@@ -54,6 +79,8 @@ class RagRepository:
         content: str,
         embedding: list[float],
         token_estimate: int | None = None,
+        embedding_model: str | None = None,
+        embedding_version: int = 1,
     ) -> str:
         chunk_id = generate_id()
         now = datetime.now(UTC)
@@ -62,10 +89,13 @@ class RagRepository:
             text("""
                 INSERT INTO document_chunks (
                     id, document_id, tenant_id, user_id, chunk_index,
-                    content, token_estimate, embedding, created_at
+                    content, token_estimate, embedding,
+                    embedding_model, embedding_version, content_tsv, created_at
                 ) VALUES (
                     :id, :document_id, :tenant_id, :user_id, :chunk_index,
-                    :content, :token_estimate, CAST(:embedding AS vector), :created_at
+                    :content, :token_estimate, CAST(:embedding AS vector),
+                    :embedding_model, :embedding_version,
+                    to_tsvector(CAST(:fts_config AS regconfig), :content), :created_at
                 )
                 """),
             {
@@ -77,6 +107,9 @@ class RagRepository:
                 "content": content,
                 "token_estimate": token_estimate,
                 "embedding": vector_literal,
+                "embedding_model": embedding_model,
+                "embedding_version": embedding_version,
+                "fts_config": await resolve_fts_config(self.db),
                 "created_at": now,
             },
         )
@@ -154,6 +187,53 @@ class RagRepository:
         )
         return list(result.scalars().all())
 
+    async def count_chunks_needing_reembed(self, *, current_version: int) -> int:
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(DocumentChunk)
+            .where(DocumentChunk.embedding_version < current_version)
+        )
+        return int(result.scalar() or 0)
+
+    async def list_chunks_needing_reembed(
+        self,
+        *,
+        current_version: int,
+        batch_size: int,
+    ) -> list[DocumentChunk]:
+        result = await self.db.execute(
+            select(DocumentChunk)
+            .where(DocumentChunk.embedding_version < current_version)
+            .order_by(DocumentChunk.created_at.asc())
+            .limit(batch_size)
+        )
+        return list(result.scalars().all())
+
+    async def update_chunk_embedding(
+        self,
+        chunk_id: str,
+        *,
+        embedding: list[float],
+        embedding_model: str,
+        embedding_version: int,
+    ) -> None:
+        vector_literal = EmbeddingService.vector_to_pg_literal(embedding)
+        await self.db.execute(
+            text("""
+                UPDATE document_chunks
+                SET embedding = CAST(:embedding AS vector),
+                    embedding_model = :embedding_model,
+                    embedding_version = :embedding_version
+                WHERE id = :id
+                """),
+            {
+                "id": chunk_id,
+                "embedding": vector_literal,
+                "embedding_model": embedding_model,
+                "embedding_version": embedding_version,
+            },
+        )
+
     async def delete_document(
         self,
         document_id: str,
@@ -180,8 +260,40 @@ class RagRepository:
         acl: RetrievalAcl,
         limit: int = 8,
         min_similarity: float = 0.5,
+        query_text: str | None = None,
     ) -> list[RetrievalHit]:
-        """Vector search with tenant/user ACL filtering before ranking."""
+        """Dense (vector) search, fused with lexical search via RRF when hybrid is enabled.
+
+        ACL is applied in the WHERE clause of both branches, before ranking.
+        """
+        dense_hits = await self._search_dense(
+            query_embedding=query_embedding,
+            acl=acl,
+            limit=limit,
+            min_similarity=min_similarity,
+        )
+
+        if not settings.ai.rag_hybrid_enabled or not query_text:
+            return dense_hits
+
+        lexical_hits = await self._search_lexical(query_text=query_text, acl=acl, limit=limit)
+        if not lexical_hits:
+            return dense_hits
+
+        return _reciprocal_rank_fusion(
+            [dense_hits, lexical_hits],
+            k=settings.ai.rag_rrf_k,
+            limit=limit,
+        )
+
+    async def _search_dense(
+        self,
+        *,
+        query_embedding: list[float],
+        acl: RetrievalAcl,
+        limit: int,
+        min_similarity: float,
+    ) -> list[RetrievalHit]:
         vector_literal = EmbeddingService.vector_to_pg_literal(query_embedding)
         result = await self.db.execute(
             text("""
@@ -209,21 +321,91 @@ class RagRepository:
                 "limit": limit,
             },
         )
-        hits: list[RetrievalHit] = []
-        for row in result.mappings().all():
-            hits.append(
-                RetrievalHit(
-                    id=row["id"],
-                    content=row["content"],
-                    score=float(row["similarity"]),
-                    document_id=row["document_id"],
-                    metadata={
-                        "title": row["title"],
-                        "chunkIndex": row["chunk_index"],
-                    },
-                )
+        return [
+            RetrievalHit(
+                id=row["id"],
+                content=row["content"],
+                score=float(row["similarity"]),
+                document_id=row["document_id"],
+                metadata={"title": row["title"], "chunkIndex": row["chunk_index"]},
             )
-        return hits
+            for row in result.mappings().all()
+        ]
+
+    async def _search_lexical(
+        self,
+        *,
+        query_text: str,
+        acl: RetrievalAcl,
+        limit: int,
+    ) -> list[RetrievalHit]:
+        fts_config = await resolve_fts_config(self.db)
+        result = await self.db.execute(
+            text("""
+                SELECT
+                    c.id,
+                    c.content,
+                    c.document_id,
+                    c.chunk_index,
+                    d.title,
+                    ts_rank_cd(c.content_tsv, plainto_tsquery(CAST(:fts_config AS regconfig), :query_text)) AS rank
+                FROM document_chunks c
+                JOIN rag_documents d ON d.id = c.document_id
+                WHERE c.tenant_id = :tenant_id
+                  AND c.user_id = :user_id
+                  AND c.content_tsv IS NOT NULL
+                  AND c.content_tsv @@ plainto_tsquery(CAST(:fts_config AS regconfig), :query_text)
+                ORDER BY rank DESC
+                LIMIT :limit
+                """),
+            {
+                "tenant_id": acl.tenant_id,
+                "user_id": acl.user_id,
+                "fts_config": fts_config,
+                "query_text": query_text,
+                "limit": limit,
+            },
+        )
+        return [
+            RetrievalHit(
+                id=row["id"],
+                content=row["content"],
+                score=float(row["rank"]),
+                document_id=row["document_id"],
+                metadata={"title": row["title"], "chunkIndex": row["chunk_index"]},
+            )
+            for row in result.mappings().all()
+        ]
+
+
+def _reciprocal_rank_fusion(
+    ranked_lists: list[list[RetrievalHit]],
+    *,
+    k: int,
+    limit: int,
+) -> list[RetrievalHit]:
+    """RRF: score(chunk) = sum(1 / (k + rank)) across every list it appears in."""
+    scores: dict[str, float] = {}
+    hit_by_id: dict[str, RetrievalHit] = {}
+    for ranked in ranked_lists:
+        for rank, hit in enumerate(ranked, start=1):
+            scores[hit.id] = scores.get(hit.id, 0.0) + 1.0 / (k + rank)
+            hit_by_id.setdefault(hit.id, hit)
+
+    ordered_ids = sorted(scores, key=lambda chunk_id: scores[chunk_id], reverse=True)
+    fused: list[RetrievalHit] = []
+    for chunk_id in ordered_ids[:limit]:
+        base = hit_by_id[chunk_id]
+        fused.append(
+            RetrievalHit(
+                id=base.id,
+                content=base.content,
+                score=scores[chunk_id],
+                document_id=base.document_id,
+                metadata=base.metadata,
+            )
+        )
+    return fused
 
 
 class PgChunkRetriever:
@@ -239,10 +421,12 @@ class PgChunkRetriever:
         acl: RetrievalAcl,
         limit: int,
         min_similarity: float,
+        query_text: str | None = None,
     ) -> list[RetrievalHit]:
         return await self._repo.search_chunks(
             query_embedding=query_embedding,
             acl=acl,
             limit=limit,
             min_similarity=min_similarity,
+            query_text=query_text,
         )

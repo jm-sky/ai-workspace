@@ -57,7 +57,7 @@ Frontend dev: `pnpm dev` (port 5176, proxy `/api` → `localhost:8003`).
 | **Faza 1.5** | Design pass (`DESIGN.md`: ChatGPT + Linear) na czacie i widoku 360° | 🔄 w toku |
 | Faza 2 | Gmail MCP (Teams odłożony — brak dostępu) | ✅ v1 readonly |
 | Faza 3 | Edytor agentów, router, bogate bloki (w tym chart) | ✅ |
-| Faza 4 | Pamięć + RAG (pgvector). Fundament ✅ (memory CRUD+injection, chunki, `rag_search`, ACL). Jakość — plan [009](docs/plans/2026-07-25--009--phase-4-retrieval-quality.md): embeddingi multilingual, hybrid+RRF, reranker, eval, UI Knowledge | 🔄 częściowo |
+| Faza 4 | Pamięć + RAG (pgvector). Fundament ✅. Jakość — plan [009](docs/plans/2026-07-25--009--phase-4-retrieval-quality.md): embed-versioning, hybrid+RRF, reranker, async ingest, memory dedupe, UI Knowledge, eval-harness — infrastruktura ✅, model embeddingów czeka na eval z żywym kluczem | 🔄 verification needed |
 | Faza 4.5 | Second Brain — wiki + bibliotekarz, pgvector-only (plan [010](docs/plans/2026-07-25--010--phase-4-5-second-brain-wiki.md)); memory graph / Graphiti bramkowany (plan [011](docs/plans/2026-07-25--011--memory-graph-graphiti.md)) | — |
 | Faza 5 | Auto-router, tool search, onboarding tenantów | — |
 | Faza 6 (kandydat) | Zdalne agenty wykonawcze (np. Claude Code na własnych serwerach) — patrz `MVP.md` Otwarte punkty | — |

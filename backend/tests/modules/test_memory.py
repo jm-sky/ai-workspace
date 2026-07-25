@@ -218,3 +218,71 @@ async def test_memory_update_tool_disabled():
         mock_settings.ai.memory_enabled = False
         result = await tool.execute({"id": "mem-1", "content": "x"})
     assert result == {"updated": False, "message": "Memory is disabled"}
+
+
+@pytest.mark.asyncio
+async def test_create_entry_saves_when_no_similar_entry_exists():
+    db = AsyncMock()
+    service = MemoryService(db)
+    service.repo = MagicMock()
+    service.repo.search_similar = AsyncMock(return_value=[])
+    service.repo.create = AsyncMock(return_value=_make_entry(entry_id="mem-new"))
+    service._embedding = MagicMock()
+    service._embedding.embed = AsyncMock(return_value=[0.1, 0.2])
+
+    entry, duplicate_of = await service.create_entry(tenant_ctx=_tenant_ctx(), content="New fact")
+
+    assert duplicate_of is None
+    assert entry.id == "mem-new"
+    service.repo.create.assert_awaited_once()
+    db.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_entry_dedupes_against_near_identical_content():
+    db = AsyncMock()
+    service = MemoryService(db)
+    service.repo = MagicMock()
+    existing = _make_entry(entry_id="mem-existing", content="The sky is blue")
+    service.repo.search_similar = AsyncMock(return_value=[(existing, 0.97)])
+    service.repo.create = AsyncMock()
+    service._embedding = MagicMock()
+    service._embedding.embed = AsyncMock(return_value=[0.1, 0.2])
+
+    entry, duplicate_of = await service.create_entry(tenant_ctx=_tenant_ctx(), content="The sky is blue")
+
+    assert duplicate_of == "mem-existing"
+    assert entry.id == "mem-existing"
+    service.repo.create.assert_not_awaited()
+    db.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_memory_save_tool_reports_duplicate():
+    from app.modules.agent.tools.memory import MemorySaveTool
+
+    tool = MemorySaveTool(tenant_ctx=_tenant_ctx(), db=AsyncMock(), agent_key="github-workspace")
+    tool.memory_service = MagicMock()
+    tool.memory_service.create_entry = AsyncMock(
+        return_value=(MagicMock(id="mem-existing", scope="user"), "mem-existing")
+    )
+
+    result = await tool.execute({"content": "The sky is blue"})
+
+    assert result["saved"] is False
+    assert result["duplicateOf"] == "mem-existing"
+
+
+@pytest.mark.asyncio
+async def test_memory_save_tool_saved_when_not_duplicate():
+    from app.modules.agent.tools.memory import MemorySaveTool
+
+    tool = MemorySaveTool(tenant_ctx=_tenant_ctx(), db=AsyncMock(), agent_key="github-workspace")
+    tool.memory_service = MagicMock()
+    tool.memory_service.create_entry = AsyncMock(
+        return_value=(MagicMock(id="mem-new", scope="user"), None)
+    )
+
+    result = await tool.execute({"content": "A brand new fact"})
+
+    assert result == {"saved": True, "id": "mem-new", "scope": "user"}

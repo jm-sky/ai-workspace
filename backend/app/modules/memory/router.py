@@ -77,7 +77,7 @@ async def create_memory(
     service: Annotated[MemoryService, Depends(_get_memory_service)],
 ) -> MemoryEntryResponse:
     _ = current_user
-    return await service.create_entry(
+    entry, _duplicate_of = await service.create_entry(
         tenant_ctx=tenant_ctx,
         content=payload.content,
         scope=payload.scope,
@@ -85,6 +85,7 @@ async def create_memory(
         session_id=payload.sessionId,
         metadata=payload.metadata,
     )
+    return entry
 
 
 @router.patch("/{entry_id}", response_model=MemoryEntryResponse)

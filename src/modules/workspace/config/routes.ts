@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 export const WorkspaceRouteName = {
   Chat: 'workspace-chat',
   Memory: 'workspace-memory',
+  Knowledge: 'workspace-knowledge',
   Settings: 'workspace-settings',
   SettingsModels: 'workspace-settings-models',
   SettingsIntegrations: 'workspace-settings-integrations',
@@ -11,6 +12,7 @@ export const WorkspaceRouteName = {
 export const WorkspaceRoutePath = {
   Chat: '/workspace',
   Memory: '/workspace/memory',
+  Knowledge: '/workspace/knowledge',
   Settings: '/workspace/settings',
   SettingsModels: '/workspace/settings/models',
   SettingsIntegrations: '/workspace/settings/integrations',
@@ -28,6 +30,12 @@ export const workspaceRoutes: RouteRecordRaw[] = [
     name: WorkspaceRouteName.Memory,
     component: () => import('../pages/WorkspaceMemoryPage.vue'),
     meta: { layout: 'authenticated', requiresAuth: true, requiresTenant: true, title: 'workspace.memory.title' },
+  },
+  {
+    path: WorkspaceRoutePath.Knowledge,
+    name: WorkspaceRouteName.Knowledge,
+    component: () => import('../pages/WorkspaceKnowledgePage.vue'),
+    meta: { layout: 'authenticated', requiresAuth: true, requiresTenant: true, title: 'workspace.knowledge.title' },
   },
   {
     path: WorkspaceRoutePath.Settings,

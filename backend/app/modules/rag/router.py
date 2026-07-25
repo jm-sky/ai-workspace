@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -13,10 +13,11 @@ from app.modules.rag.schemas import (
     RagDocumentDetailResponse,
     RagDocumentListResponse,
     RagDocumentResponse,
+    RagFromAttachmentRequest,
     RagSearchRequest,
     RagSearchResponse,
 )
-from app.modules.rag.services.rag_service import RagService
+from app.modules.rag.services.rag_service import RagService, run_rag_ingest_in_background
 from app.modules.workspace_config.repositories import WorkspaceConfigRepository
 from app.modules.workspace_config.resolver import WorkspaceConfigResolver
 
@@ -42,16 +43,18 @@ async def _resolve_rag_enabled(
     return effective.ragEnabled
 
 
-@router.post("/documents", status_code=status.HTTP_201_CREATED, response_model=RagDocumentResponse)
+@router.post("/documents", status_code=status.HTTP_202_ACCEPTED, response_model=RagDocumentResponse)
 async def create_document(
     payload: RagDocumentCreate,
     current_user: CurrentUser,
     tenant_ctx: AgentTenantContext,
     service: Annotated[RagService, Depends(_get_rag_service)],
+    background_tasks: BackgroundTasks,
 ) -> RagDocumentResponse:
+    """Create a `pending` document; embedding/ingest happens in the background."""
     _ = current_user
     try:
-        return await service.ingest_paste(
+        response, chunks = await service.ingest_paste(
             tenant_ctx=tenant_ctx,
             title=payload.title,
             content=payload.content,
@@ -61,6 +64,55 @@ async def create_document(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
+
+    background_tasks.add_task(
+        run_rag_ingest_in_background,
+        document_id=response.id,
+        tenant_id=tenant_ctx.tenant_id,
+        user_id=tenant_ctx.user_id,
+        chunks=chunks,
+    )
+    return response
+
+
+@router.post(
+    "/documents/from-attachment",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=RagDocumentResponse,
+)
+async def create_document_from_attachment(
+    payload: RagFromAttachmentRequest,
+    current_user: CurrentUser,
+    tenant_ctx: AgentTenantContext,
+    service: Annotated[RagService, Depends(_get_rag_service)],
+    background_tasks: BackgroundTasks,
+) -> RagDocumentResponse:
+    """Ingest a chat attachment's extracted text as a RAG document (opt-in)."""
+    _ = current_user
+    try:
+        result = await service.ingest_from_attachment(
+            tenant_ctx=tenant_ctx,
+            attachment_id=payload.attachmentId,
+            title=payload.title,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+
+    response, chunks = result
+    background_tasks.add_task(
+        run_rag_ingest_in_background,
+        document_id=response.id,
+        tenant_id=tenant_ctx.tenant_id,
+        user_id=tenant_ctx.user_id,
+        chunks=chunks,
+    )
+    return response
 
 
 @router.get("/documents", response_model=RagDocumentListResponse)
@@ -122,5 +174,7 @@ async def search_documents(
         query=request.query,
         limit=request.limit,
         rag_enabled=rag_enabled,
+        hybrid=request.hybrid,
+        rerank=request.rerank,
     )
     return RagSearchResponse(hits=hits, total=len(hits))

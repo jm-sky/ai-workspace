@@ -1,10 +1,11 @@
 """Application configuration using Pydantic Settings with modular structure."""
 
+import os
 from enum import StrEnum
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.core.helpers import parse_bool_value, parse_list_value
@@ -816,6 +817,78 @@ class AISettings(BaseSettings):
         description="Days to keep raw agent trace payloads before purge/expiry",
         ge=0,
     )
+    embedding_model: str = Field(
+        default="openai/text-embedding-3-small",
+        validation_alias="AI_EMBEDDING_MODEL",
+        description="Embedding model on OpenRouter (replaces AI_MEMORY_EMBEDDING_MODEL, which is now a deprecated alias)",
+    )
+    embedding_dimensions: int = Field(
+        default=1536,
+        validation_alias="AI_EMBEDDING_DIMENSIONS",
+        description="Vector dimensions for embeddings; must match the pgvector column width",
+        gt=0,
+    )
+    embedding_version: int = Field(
+        default=1,
+        validation_alias="AI_EMBEDDING_VERSION",
+        description="Bump when the embedding model changes; reembed CLI resumes from this version",
+        gt=0,
+    )
+    embedding_batch_size: int = Field(
+        default=64,
+        validation_alias="AI_EMBEDDING_BATCH_SIZE",
+        description="Batch size used by EmbeddingService.embed_batch()",
+        gt=0,
+    )
+    rag_hybrid_enabled: bool = Field(
+        default=True,
+        validation_alias="AI_RAG_HYBRID_ENABLED",
+        description="Combine dense (vector) and lexical (tsvector) search via RRF",
+    )
+    rag_rrf_k: int = Field(
+        default=60,
+        validation_alias="AI_RAG_RRF_K",
+        description="RRF constant k in score = sum(1 / (k + rank))",
+        gt=0,
+    )
+    rag_fts_config: str = Field(
+        default="auto",
+        validation_alias="AI_RAG_FTS_CONFIG",
+        description="Postgres text-search config: 'auto' detects 'polish', falling back to 'simple'",
+    )
+    rag_rerank_enabled: bool = Field(
+        default=False,
+        validation_alias="AI_RAG_RERANK_ENABLED",
+        description="Use HostedReranker instead of NoopReranker",
+    )
+    rag_rerank_url: str = Field(
+        default="",
+        validation_alias="AI_RAG_RERANK_URL",
+        description="Hosted reranker HTTP endpoint",
+    )
+    rag_rerank_model: str = Field(
+        default="",
+        validation_alias="AI_RAG_RERANK_MODEL",
+        description="Hosted reranker model identifier",
+    )
+    rag_rerank_api_key: str = Field(
+        default="",
+        validation_alias="AI_RAG_RERANK_API_KEY",
+        description="Hosted reranker API key",
+    )
+    rag_rerank_candidates: int = Field(
+        default=50,
+        validation_alias="AI_RAG_RERANK_CANDIDATES",
+        description="Top-N candidates retrieved before reranking down to rag_search_limit",
+        gt=0,
+    )
+    memory_dedupe_threshold: float = Field(
+        default=0.92,
+        validation_alias="AI_MEMORY_DEDUPE_THRESHOLD",
+        description="Cosine similarity above which memory_save treats content as a duplicate",
+        ge=0.0,
+        le=1.0,
+    )
 
     @field_validator(
         "enabled",
@@ -823,12 +896,27 @@ class AISettings(BaseSettings):
         "memory_enabled",
         "audit_raw_enabled",
         "tool_search_enabled",
+        "rag_hybrid_enabled",
+        "rag_rerank_enabled",
         mode="before",
     )
     @classmethod
     def parse_bool_field(cls, v: str | bool) -> bool:
         """Parse boolean field from string or bool."""
         return parse_bool_value(v)
+
+    @model_validator(mode="after")
+    def apply_legacy_embedding_aliases(self) -> "AISettings":
+        """Honor AI_MEMORY_EMBEDDING_* when the new AI_EMBEDDING_* keys are unset.
+
+        Keeps existing deployments (e.g. the VPS .env) working unchanged while
+        AI_EMBEDDING_* becomes the canonical name (plan 009 dec. #4).
+        """
+        if "AI_EMBEDDING_MODEL" not in os.environ and "AI_MEMORY_EMBEDDING_MODEL" in os.environ:
+            self.embedding_model = self.memory_embedding_model
+        if "AI_EMBEDDING_DIMENSIONS" not in os.environ and "AI_MEMORY_EMBEDDING_DIMENSIONS" in os.environ:
+            self.embedding_dimensions = self.memory_embedding_dimensions
+        return self
 
 
 class RedisSettings(BaseSettings):
