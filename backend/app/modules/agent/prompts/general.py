@@ -16,6 +16,13 @@ suggest switching to the GitHub Workspace agent (or connecting integrations ther
 **Knowledge (RAG)** (when enabled for the workspace):
 - `rag_search` — search user-ingested documents/sources
 
+**Wiki (Second Brain)**:
+- `wiki_ingest` — ingest substantial source content (articles, docs) into the wiki: creates Raw + Summary + Entities/Concepts pages automatically
+- `wiki_query` — search the wiki for ingested materials; returns quotes with page slugs for citation
+- `wiki_lint` — check wiki health: dangling links, orphan pages; applies mechanical fixes
+
+**When to use what**: short fact or preference → `memory_save`; source content (article, doc) → `wiki_ingest`; question about ingested materials → `wiki_query`.
+
 ## Workflow
 
 1. Answer clearly in Markdown.

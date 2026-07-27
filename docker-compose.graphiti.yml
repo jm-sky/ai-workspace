@@ -1,0 +1,29 @@
+# Graphiti spike — FalkorDB for memory-graph evaluation (plan 011, stage 2).
+# Usage:  docker compose -f docker-compose.graphiti.yml up -d
+# NOT included in docker-compose.dev.yml — standalone spike infra.
+
+name: ai-workspace-graphiti
+
+services:
+  falkordb:
+    image: falkordb/falkordb:v4.20.1
+    container_name: ai-workspace-graphiti
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6383:6379"
+    volumes:
+      - ai_workspace_graphiti_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  ai_workspace_graphiti_data:
+    name: ai_workspace_graphiti_data

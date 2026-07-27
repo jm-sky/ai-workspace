@@ -58,7 +58,7 @@ Frontend dev: `pnpm dev` (port 5176, proxy `/api` → `localhost:8003`).
 | Faza 2 | Gmail MCP (Teams odłożony — brak dostępu) | ✅ v1 readonly |
 | Faza 3 | Edytor agentów, router, bogate bloki (w tym chart) | ✅ |
 | Faza 4 | Pamięć + RAG (pgvector). Fundament ✅. Jakość — plan [009](docs/plans/2026-07-25--009--phase-4-retrieval-quality.md): embed-versioning, hybrid+RRF, reranker, async ingest, memory dedupe, UI Knowledge, eval-harness — infrastruktura ✅, model embeddingów czeka na eval z żywym kluczem | 🔄 verification needed |
-| Faza 4.5 | Second Brain — wiki + bibliotekarz, pgvector-only (plan [010](docs/plans/2026-07-25--010--phase-4-5-second-brain-wiki.md)); memory graph / Graphiti bramkowany (plan [011](docs/plans/2026-07-25--011--memory-graph-graphiti.md)) | — |
+| Faza 4.5 | Second Brain — wiki + bibliotekarz, pgvector-only (plan [010](docs/plans/2026-07-25--010--phase-4-5-second-brain-wiki.md)) ✅; memory graph / Graphiti bramkowany (plan [011](docs/plans/2026-07-25--011--memory-graph-graphiti.md)) — facade ✅, spike scaffolding ✅, bramka czeka na klucz | 🔄 bramka Graphiti |
 | Faza 5 | Auto-router, tool search, onboarding tenantów | — |
 | Faza 6 (kandydat) | Zdalne agenty wykonawcze (np. Claude Code na własnych serwerach) — patrz `MVP.md` Otwarte punkty | — |
 
@@ -73,8 +73,9 @@ Scenariusz MVP (od 2026-07-11): otwarty multi-tool workspace (ChatGPT/Claude-lik
 | `workspace_config` | Kaskada App→Tenant→Team→User |
 | `integrations` | Szyfrowany magazyn tokenów OAuth (Jira, GitLab, GitHub, …) |
 | `agent` | Pętla agenta, Task/Run + trace, SSE, narzędzia (jira/gitlab/github/memory) |
-| `memory` | Pamięć życiowa — pgvector, embeddingi, `memory_search`/`memory_save`/`memory_update` + auto-injection |
+| `memory` | Pamięć życiowa — pgvector (default), facade `MemoryBackend` + opcjonalny Graphiti (bramka); embeddingi, `memory_search`/`memory_save`/`memory_update` + auto-injection |
 | `rag` | Document RAG — `rag_documents`/`document_chunks`, chunker, `PgChunkRetriever` (ACL przed rankingiem), `rag_search` |
+| `wiki` | Second Brain — `wiki_pages`/`wiki_links`, bibliotekarz (`wiki_ingest`/`wiki_query`/`wiki_lint`), indeksacja przez RAG `source_type=wiki` |
 | `mcp` | Cienkie klienty MCP-style per provider (obecnie GitHub) |
 | `admin` | Panel/API admina (docelowo „Control Tower") |
 | `settings` | Preferencje użytkownika |

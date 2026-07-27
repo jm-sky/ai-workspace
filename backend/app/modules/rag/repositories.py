@@ -261,6 +261,7 @@ class RagRepository:
         limit: int = 8,
         min_similarity: float = 0.5,
         query_text: str | None = None,
+        source_types: list[str] | None = None,
     ) -> list[RetrievalHit]:
         """Dense (vector) search, fused with lexical search via RRF when hybrid is enabled.
 
@@ -271,12 +272,13 @@ class RagRepository:
             acl=acl,
             limit=limit,
             min_similarity=min_similarity,
+            source_types=source_types,
         )
 
         if not settings.ai.rag_hybrid_enabled or not query_text:
             return dense_hits
 
-        lexical_hits = await self._search_lexical(query_text=query_text, acl=acl, limit=limit)
+        lexical_hits = await self._search_lexical(query_text=query_text, acl=acl, limit=limit, source_types=source_types)
         if not lexical_hits:
             return dense_hits
 
@@ -293,10 +295,22 @@ class RagRepository:
         acl: RetrievalAcl,
         limit: int,
         min_similarity: float,
+        source_types: list[str] | None = None,
     ) -> list[RetrievalHit]:
         vector_literal = EmbeddingService.vector_to_pg_literal(query_embedding)
+        source_filter = ""
+        params: dict = {
+            "tenant_id": acl.tenant_id,
+            "user_id": acl.user_id,
+            "query_vec": vector_literal,
+            "min_similarity": min_similarity,
+            "limit": limit,
+        }
+        if source_types:
+            source_filter = " AND d.source_type = ANY(:source_types)"
+            params["source_types"] = source_types
         result = await self.db.execute(
-            text("""
+            text(f"""
                 SELECT
                     c.id,
                     c.content,
@@ -309,17 +323,11 @@ class RagRepository:
                 WHERE c.tenant_id = :tenant_id
                   AND c.user_id = :user_id
                   AND c.embedding IS NOT NULL
-                  AND 1 - (c.embedding <=> CAST(:query_vec AS vector)) >= :min_similarity
+                  AND 1 - (c.embedding <=> CAST(:query_vec AS vector)) >= :min_similarity{source_filter}
                 ORDER BY c.embedding <=> CAST(:query_vec AS vector)
                 LIMIT :limit
                 """),
-            {
-                "tenant_id": acl.tenant_id,
-                "user_id": acl.user_id,
-                "query_vec": vector_literal,
-                "min_similarity": min_similarity,
-                "limit": limit,
-            },
+            params,
         )
         return [
             RetrievalHit(
@@ -338,10 +346,22 @@ class RagRepository:
         query_text: str,
         acl: RetrievalAcl,
         limit: int,
+        source_types: list[str] | None = None,
     ) -> list[RetrievalHit]:
         fts_config = await resolve_fts_config(self.db)
+        source_filter = ""
+        params: dict = {
+            "tenant_id": acl.tenant_id,
+            "user_id": acl.user_id,
+            "fts_config": fts_config,
+            "query_text": query_text,
+            "limit": limit,
+        }
+        if source_types:
+            source_filter = " AND d.source_type = ANY(:source_types)"
+            params["source_types"] = source_types
         result = await self.db.execute(
-            text("""
+            text(f"""
                 SELECT
                     c.id,
                     c.content,
@@ -354,17 +374,11 @@ class RagRepository:
                 WHERE c.tenant_id = :tenant_id
                   AND c.user_id = :user_id
                   AND c.content_tsv IS NOT NULL
-                  AND c.content_tsv @@ plainto_tsquery(CAST(:fts_config AS regconfig), :query_text)
+                  AND c.content_tsv @@ plainto_tsquery(CAST(:fts_config AS regconfig), :query_text){source_filter}
                 ORDER BY rank DESC
                 LIMIT :limit
                 """),
-            {
-                "tenant_id": acl.tenant_id,
-                "user_id": acl.user_id,
-                "fts_config": fts_config,
-                "query_text": query_text,
-                "limit": limit,
-            },
+            params,
         )
         return [
             RetrievalHit(
@@ -422,6 +436,7 @@ class PgChunkRetriever:
         limit: int,
         min_similarity: float,
         query_text: str | None = None,
+        source_types: list[str] | None = None,
     ) -> list[RetrievalHit]:
         return await self._repo.search_chunks(
             query_embedding=query_embedding,
@@ -429,4 +444,5 @@ class PgChunkRetriever:
             limit=limit,
             min_similarity=min_similarity,
             query_text=query_text,
+            source_types=source_types,
         )

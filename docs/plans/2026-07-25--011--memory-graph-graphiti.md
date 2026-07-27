@@ -1,6 +1,6 @@
 # Plan 011 — Memory graph: facade + cutover na Graphiti
 
-**Status:** `planned`
+**Status:** `in progress`
 **Data:** 2026-07-25
 **Obszar:** backend (`memory`, `agent`), infra (compose, FalkorDB)
 **Parent:** [004 Second Brain](2026-07-23--004--second-brain-wiki.md) — realizuje todo `later-graphiti-memory`
@@ -183,15 +183,19 @@ Sekwencja z planu 004, bez skrótów:
 
 ## Kryteria done
 
-**Etap 1 (obowiązkowy):**
-- [ ] `MemoryBackend` Protocol + `PgVectorMemoryBackend`
-- [ ] `MEMORY_BACKEND` w configu i `.env.example`
-- [ ] 14 testów `test_memory.py` zielonych **bez zmiany asercji**
-- [ ] Injection daje identyczny prompt jak przed refaktorem
+**Etap 1 (obowiązkowy) — ✅ done (2026-07-27):**
+- [x] `MemoryBackend` Protocol + `PgVectorMemoryBackend`
+- [x] `MEMORY_BACKEND` w configu i `.env.example`
+- [x] 16 testów `test_memory.py` zielonych **bez zmiany asercji** (było 14 w planie, jest 16 w repo)
+- [x] Injection daje identyczny prompt jak przed refaktorem
+- [x] Test walidacji nieznany backend → ValueError / ValidationError
 
-**Etap 2 (obowiązkowy):**
-- [ ] Spike uruchomiony, wszystkie 6 metryk bramki zmierzone
-- [ ] Wpis w `docs/research/` z tabelą pass/fail
+**Etap 2 (obowiązkowy) — 🟡 infrastruktura gotowa, bramka czeka na klucz API:**
+- [x] `docker-compose.graphiti.yml` — FalkorDB v4.20.1, port 6383
+- [x] `GraphitiMemoryBackend` (create + search; update/delete/list → NotImplementedError)
+- [x] Spike runner (`evals/memory_graphiti/`) — fixtures 2×2×10, metryki bramki
+- [x] Wpis w `docs/research/2026-07-27--009--graphiti-spike-gate.md`
+- [ ] Spike uruchomiony z kluczem API, 6 metryk bramki zmierzone
 - [ ] Wyniki przedstawione użytkownikowi, decyzja podjęta
 
 **Etapy 3+ (warunkowe):**

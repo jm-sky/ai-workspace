@@ -48,6 +48,7 @@ class ChunkRetriever(Protocol):
         limit: int,
         min_similarity: float,
         query_text: str | None = None,
+        source_types: list[str] | None = None,
     ) -> list[RetrievalHit]: ...
 
 

@@ -4,6 +4,7 @@ export const WorkspaceRouteName = {
   Chat: 'workspace-chat',
   Memory: 'workspace-memory',
   Knowledge: 'workspace-knowledge',
+  Wiki: 'workspace-wiki',
   Settings: 'workspace-settings',
   SettingsModels: 'workspace-settings-models',
   SettingsIntegrations: 'workspace-settings-integrations',
@@ -13,6 +14,7 @@ export const WorkspaceRoutePath = {
   Chat: '/workspace',
   Memory: '/workspace/memory',
   Knowledge: '/workspace/knowledge',
+  Wiki: '/workspace/wiki',
   Settings: '/workspace/settings',
   SettingsModels: '/workspace/settings/models',
   SettingsIntegrations: '/workspace/settings/integrations',
@@ -36,6 +38,12 @@ export const workspaceRoutes: RouteRecordRaw[] = [
     name: WorkspaceRouteName.Knowledge,
     component: () => import('../pages/WorkspaceKnowledgePage.vue'),
     meta: { layout: 'authenticated', requiresAuth: true, requiresTenant: true, title: 'workspace.knowledge.title' },
+  },
+  {
+    path: WorkspaceRoutePath.Wiki,
+    name: WorkspaceRouteName.Wiki,
+    component: () => import('../pages/WorkspaceWikiPage.vue'),
+    meta: { layout: 'authenticated', requiresAuth: true, requiresTenant: true, title: 'workspace.wiki.title' },
   },
   {
     path: WorkspaceRoutePath.Settings,

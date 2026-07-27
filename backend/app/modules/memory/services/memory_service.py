@@ -1,30 +1,84 @@
-"""Business logic for semantic memory."""
+"""Business logic facade for semantic memory — delegates to a MemoryBackend."""
 
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.common.embeddings import EmbeddingService
 from app.core.config import settings
-from app.modules.memory.db_models import MemoryEntry
-from app.modules.memory.repositories import MemoryRepository
+from app.modules.memory.backends.pgvector import PgVectorMemoryBackend
 from app.modules.memory.schemas import MemoryEntryResponse
 from app.modules.memory.types import MemoryScope, MemorySource
 from app.modules.tenants.service import TenantContext
 
 
+def _create_backend(db: AsyncSession) -> PgVectorMemoryBackend:
+    """Instantiate the configured memory backend.
+
+    Raises ``ValueError`` for unknown backend types at construction time
+    (not a silent fallback).
+    """
+    backend_type = settings.ai.memory_backend
+
+    if backend_type == "pgvector":
+        return PgVectorMemoryBackend(db)
+
+    if backend_type == "graphiti":
+        try:
+            from app.modules.memory.backends.graphiti import GraphitiMemoryBackend
+        except ImportError as exc:
+            raise ImportError(
+                "graphiti-core is not installed. "
+                "Install it with: pip install graphiti-core"
+            ) from exc
+        return GraphitiMemoryBackend()  # type: ignore[return-value]
+
+    raise ValueError(
+        f"Unknown MEMORY_BACKEND: {backend_type!r}. "
+        f"Allowed values: pgvector, graphiti"
+    )
+
+
 class MemoryService:
-    """Create, search, and manage tenant-scoped memories."""
+    """Create, search, and manage tenant-scoped memories.
+
+    Thin facade over a :class:`MemoryBackend` implementation selected by
+    ``settings.ai.memory_backend`` (default ``pgvector``).
+
+    ``build_injection_context`` (prompt formatting) stays here — it is
+    backend-agnostic.
+    """
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.repo = MemoryRepository(db)
-        self._embedding: EmbeddingService | None = None
+        self._backend = _create_backend(db)
 
-    def _embedder(self) -> EmbeddingService:
-        if self._embedding is None:
-            self._embedding = EmbeddingService()
-        return self._embedding
+    # ------------------------------------------------------------------
+    # Proxy properties — backward compatibility for tests that mock
+    # service.repo / service._embedding on PgVectorMemoryBackend.
+    # ------------------------------------------------------------------
+
+    @property
+    def repo(self):  # type: ignore[override]
+        return self._backend.repo
+
+    @repo.setter
+    def repo(self, value):  # type: ignore[override]
+        self._backend.repo = value
+
+    @property
+    def _embedding(self):
+        return self._backend._embedding
+
+    @_embedding.setter
+    def _embedding(self, value):
+        self._backend._embedding = value
+
+    def _embedder(self):
+        return self._backend._embedder()
+
+    # ------------------------------------------------------------------
+    # Public API — signatures unchanged from before the facade refactor
+    # ------------------------------------------------------------------
 
     async def create_entry(
         self,
@@ -43,36 +97,18 @@ class MemoryService:
         of an existing entry (cosine similarity >= AI_MEMORY_DEDUPE_THRESHOLD,
         scoped like retrieval by agent_key/session_id), no new row is written
         and ``duplicate_of_id`` carries the existing entry's id (plan 009
-        dec. #17) — `content` is unchanged from earlier idempotent writes.
+        dec. #17) — ``content`` is unchanged from earlier idempotent writes.
         """
-        embedding = await self._embedder().embed(content)
-
-        existing = await self.repo.search_similar(
+        return await self._backend.create(
             tenant_id=tenant_ctx.tenant_id,
             user_id=tenant_ctx.user_id,
-            embedding=embedding,
-            agent_key=agent_key,
-            session_id=session_id,
-            limit=1,
-            min_similarity=settings.ai.memory_dedupe_threshold,
-        )
-        if existing:
-            duplicate_entry, similarity = existing[0]
-            return self._to_response(duplicate_entry, similarity=similarity), duplicate_entry.id
-
-        entry = await self.repo.create(
-            tenant_id=tenant_ctx.tenant_id,
-            user_id=tenant_ctx.user_id,
-            scope=scope,
             content=content,
-            embedding=embedding,
-            source=source,
+            scope=scope,
             agent_key=agent_key,
             session_id=session_id,
+            source=source,
             metadata=metadata,
         )
-        await self.db.commit()
-        return self._to_response(entry), None
 
     async def search(
         self,
@@ -84,24 +120,15 @@ class MemoryService:
         scope: str | None = None,
         limit: int = 10,
     ) -> list[MemoryEntryResponse]:
-        if not settings.ai.memory_enabled:
-            return []
-
-        embedding = await self._embedder().embed(query)
-        results = await self.repo.search_similar(
+        return await self._backend.search(
             tenant_id=tenant_ctx.tenant_id,
             user_id=tenant_ctx.user_id,
-            embedding=embedding,
+            query=query,
             agent_key=agent_key,
             session_id=session_id,
+            scope=scope,
             limit=limit,
-            min_similarity=settings.ai.memory_similarity_threshold,
         )
-
-        if scope:
-            results = [(entry, sim) for entry, sim in results if entry.scope == scope]
-
-        return [self._to_response(entry, similarity=sim) for entry, sim in results]
 
     async def list_entries(
         self,
@@ -114,7 +141,7 @@ class MemoryService:
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[MemoryEntryResponse], int]:
-        entries, total = await self.repo.list_entries(
+        return await self._backend.list_entries(
             tenant_id=tenant_ctx.tenant_id,
             user_id=tenant_ctx.user_id,
             scope=scope,
@@ -124,7 +151,6 @@ class MemoryService:
             limit=limit,
             offset=offset,
         )
-        return [self._to_response(entry) for entry in entries], total
 
     async def delete_entry(
         self,
@@ -132,14 +158,11 @@ class MemoryService:
         tenant_ctx: TenantContext,
         entry_id: str,
     ) -> bool:
-        deleted = await self.repo.delete(
-            entry_id,
+        return await self._backend.delete(
+            entry_id=entry_id,
             tenant_id=tenant_ctx.tenant_id,
             user_id=tenant_ctx.user_id,
         )
-        if deleted:
-            await self.db.commit()
-        return deleted
 
     async def update_entry(
         self,
@@ -154,67 +177,17 @@ class MemoryService:
         update_metadata: bool = False,
     ) -> MemoryEntryResponse | None:
         """Partial update. Re-embeds only when content changes. Returns None if ACL miss."""
-        existing = await self.repo.get_by_id(
-            entry_id,
+        return await self._backend.update(
+            entry_id=entry_id,
             tenant_id=tenant_ctx.tenant_id,
             user_id=tenant_ctx.user_id,
-        )
-        if existing is None:
-            return None
-
-        new_content: str | None = None
-        if content is not None:
-            new_content = content.strip()
-            if not new_content:
-                raise ValueError("content must not be empty")
-
-        content_changed = new_content is not None and new_content != existing.content.strip()
-
-        clear_agent_key = False
-        clear_session_id = False
-        next_agent_key: str | None = None
-        next_session_id: str | None = None
-
-        if scope is not None:
-            if scope == MemoryScope.USER.value:
-                clear_agent_key = True
-                clear_session_id = True
-            elif scope == MemoryScope.AGENT.value:
-                if not agent_key:
-                    raise ValueError("agentKey is required when scope is agent")
-                next_agent_key = agent_key
-                clear_session_id = True
-            elif scope == MemoryScope.SESSION.value:
-                if not session_id:
-                    raise ValueError("sessionId is required when scope is session")
-                next_session_id = session_id
-                clear_agent_key = True
-            else:
-                raise ValueError(f"Invalid scope: {scope}")
-
-        embedding: list[float] | None = None
-        if content_changed and new_content is not None:
-            embedding = await self._embedder().embed(new_content)
-
-        entry = await self.repo.update(
-            entry_id,
-            tenant_id=tenant_ctx.tenant_id,
-            user_id=tenant_ctx.user_id,
-            content=new_content,
+            content=content,
             scope=scope,
-            agent_key=next_agent_key,
-            session_id=next_session_id,
-            clear_agent_key=clear_agent_key,
-            clear_session_id=clear_session_id,
+            agent_key=agent_key,
+            session_id=session_id,
             metadata=metadata,
             update_metadata=update_metadata,
-            embedding=embedding,
         )
-        if entry is None:
-            return None
-
-        await self.db.commit()
-        return self._to_response(entry)
 
     async def build_injection_context(
         self,
@@ -224,7 +197,10 @@ class MemoryService:
         agent_key: str,
         session_id: str | None = None,
     ) -> str:
-        """Return memories to prepend to the system prompt."""
+        """Return memories to prepend to the system prompt.
+
+        Formatting stays on MemoryService — it is backend-agnostic.
+        """
         if not settings.ai.memory_enabled:
             return ""
 
@@ -247,22 +223,3 @@ class MemoryService:
             lines.append(f"- [{scope_label}{sim}] {item.content}")
         lines.append("")
         return "\n".join(lines)
-
-    @staticmethod
-    def _to_response(
-        entry: MemoryEntry,
-        *,
-        similarity: float | None = None,
-    ) -> MemoryEntryResponse:
-        return MemoryEntryResponse(
-            id=entry.id,
-            content=entry.content,
-            scope=entry.scope,
-            agentKey=entry.agent_key,
-            sessionId=entry.session_id,
-            source=entry.source,
-            metadata=entry.entry_metadata,
-            similarity=similarity,
-            createdAt=entry.created_at,
-            updatedAt=entry.updated_at,
-        )

@@ -14,6 +14,7 @@ from app.modules.agent.tools.jira import JiraGetIssueTool
 from app.modules.agent.tools.memory import MemorySaveTool, MemorySearchTool, MemoryUpdateTool
 from app.modules.agent.tools.rag import RagSearchTool
 from app.modules.agent.tools.tool_search import ToolSearchTool
+from app.modules.agent.tools.wiki import WikiIngestTool, WikiLintTool, WikiQueryTool
 from app.modules.integrations.service import IntegrationTokenService
 from app.modules.tenants.service import TenantContext
 
@@ -99,6 +100,12 @@ def build_tool_registry(
                 rag_enabled=rag_enabled,
             )
         )
+    if "wiki" in profile:
+        tools.extend([
+            WikiIngestTool(tenant_ctx=tenant_ctx, db=db),
+            WikiQueryTool(tenant_ctx=tenant_ctx, db=db),
+            WikiLintTool(tenant_ctx=tenant_ctx, db=db),
+        ])
 
     registry = AgentToolRegistry(tools=tools)
     profile_count = len(tools)

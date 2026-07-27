@@ -295,6 +295,7 @@ class RagService:
         rag_enabled: bool = True,
         hybrid: bool | None = None,
         rerank: bool | None = None,
+        source_types: list[str] | None = None,
     ) -> list[RagSearchHit]:
         if not rag_enabled:
             return []
@@ -315,6 +316,7 @@ class RagService:
             limit=candidate_limit,
             min_similarity=settings.ai.rag_similarity_threshold,
             query_text=query if (settings.ai.rag_hybrid_enabled if hybrid is None else hybrid) else None,
+            source_types=source_types,
         )
 
         if use_reranker:

@@ -19,5 +19,6 @@ Analizy, spike'i, porównania i notatki przed decyzją.
 | 006 | [2026-07-08--006--ai-kancelaria-comparison.md](2026-07-08--006--ai-kancelaria-comparison.md) | Porównanie z ai-kancelaria: co wdrożyć w AI Workspace | `done` |
 | 007 | [2026-07-10--007--chatgpt-settings-reference.md](2026-07-10--007--chatgpt-settings-reference.md) | Referencja UX: ustawienia aplikacji AI (ChatGPT) + architektura pamięci wielopoziomowej | `done` |
 | 008 | [2026-07-25--008--embeddings-rag-second-brain.md](2026-07-25--008--embeddings-rag-second-brain.md) | Faza 4: embeddingi (multilingual/PL), chunking, hybrid+reranker, eval RAG, memory graph, Second Brain | `done` |
+| 009 | [2026-07-27--009--graphiti-spike-gate.md](2026-07-27--009--graphiti-spike-gate.md) | Graphiti spike: gate metrics, FalkorDB infra, bramka go/no-go (plan 011 etap 2) | `in progress` |
 
 When adding a new entry: pick next `NNN`, create `YYYY-MM-DD--NNN--slug.md`, add a row here.

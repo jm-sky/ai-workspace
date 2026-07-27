@@ -1,6 +1,6 @@
 # Plan 010 — Faza 4.5: Second Brain (wiki + bibliotekarz), pgvector-only
 
-**Status:** `planned`
+**Status:** `done`
 **Data:** 2026-07-25
 **Obszar:** backend (`wiki` nowy moduł, `rag`, `agent/tools`) + frontend (przeglądarka folderów)
 **Parent:** [004 Second Brain](2026-07-23--004--second-brain-wiki.md) — realizuje todo `path-mcp-or-pages`, `wiki-folder-browser`; **zamyka** `spike-docker-mcp` i `decide-path`
@@ -232,12 +232,18 @@ Wszystko w `src/modules/workspace/`: `pages/WorkspaceWikiPage.vue` + `services/w
 
 ## Kryteria done
 
-- [ ] Migracja `066` (`upgrade`/`downgrade`) zielona
-- [ ] CRUD stron z ACL per-user; Raw immutable (409)
-- [ ] `[[wikilinks]]` → `wiki_links` z rebuildem; dangling obsłużone
-- [ ] `wiki_ingest` tworzy Raw + Summary + ripple ≤ 15 + wpis w Log
-- [ ] Inbox nie promuje się sam
-- [ ] Strona wiki indeksowana pipeline'em z planu 009; `wiki_query` zwraca cytaty tylko ze scope usera
-- [ ] Przeglądarka folderów + podgląd + graf działają
-- [ ] Testy z sekcji Testy zielone
-- [ ] Plan 004: todo `spike-docker-mcp`, `decide-path`, `path-mcp-or-pages`, `wiki-folder-browser` zamknięte
+- [x] Migracja `066` (`upgrade`/`downgrade`) zielona
+- [x] CRUD stron z ACL per-user; Raw immutable (409)
+- [x] `[[wikilinks]]` → `wiki_links` z rebuildem; dangling obsłużone
+- [x] `wiki_ingest` tworzy Raw + Summary + ripple ≤ 15 + wpis w Log
+- [x] Inbox nie promuje się sam
+- [x] Strona wiki indeksowana pipeline'em z planu 009; `wiki_query` zwraca cytaty tylko ze scope usera
+- [x] Przeglądarka folderów + podgląd + graf działają
+- [x] Testy z sekcji Testy zielone
+- [x] Plan 004: todo `spike-docker-mcp`, `decide-path`, `path-mcp-or-pages`, `wiki-folder-browser` zamknięte
+
+### Otwarte punkty — przyjęte propozycje (2026-07-27)
+
+1. Ripple **sync** w `wiki_ingest`
+2. `wiki_query` jako **osobny tool**
+3. Graf: prosty force-directed SVG bez nowej zależności

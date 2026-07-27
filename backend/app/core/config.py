@@ -889,6 +889,21 @@ class AISettings(BaseSettings):
         ge=0.0,
         le=1.0,
     )
+    memory_backend: str = Field(
+        default="pgvector",
+        validation_alias="MEMORY_BACKEND",
+        description="Memory persistence backend: pgvector (default) or graphiti",
+    )
+
+    @field_validator("memory_backend")
+    @classmethod
+    def validate_memory_backend(cls, v: str) -> str:
+        allowed = {"pgvector", "graphiti"}
+        if v not in allowed:
+            raise ValueError(
+                f"MEMORY_BACKEND must be one of {sorted(allowed)}, got: {v!r}"
+            )
+        return v
 
     @field_validator(
         "enabled",

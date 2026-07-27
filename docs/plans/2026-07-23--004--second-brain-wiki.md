@@ -1,11 +1,10 @@
 # Plan — Second Brain (wiki + pamięć życiowa)
 
-**Data:** 2026-07-23  
-**Status:** `planned`  
+**Status:** `in progress`  
 **Referencje:** [LLM Wiki / Karpathy](https://natural20.com/using-claude-code-to-setup-a-second-brain-aka-llm-wiki), [LightRAG MCP](https://github.com/a-earthperson/lightrag-mcp), [Graphiti MCP](https://help.getzep.com/graphiti/getting-started/mcp-server)  
 **Review:** uwagi z 2026-07-23 domknięte poniżej (sekcja „Rozstrzygnięcia po review”).
 
-> **Aktualizacja 2026-07-25.** Ten plan pozostaje **planem-parasolem**. Realizacja została rozpisana na wycinki: [009](2026-07-25--009--phase-4-retrieval-quality.md) (jakość retrievalu), [010](2026-07-25--010--phase-4-5-second-brain-wiki.md) (wiki + bibliotekarz), [011](2026-07-25--011--memory-graph-graphiti.md) (memory graph). **LightRAG: no-go** — spike nie będzie wykonany, idziemy ścieżką „retrieval tylko u nas" opisaną niżej (uzasadnienie: [research 008](../research/2026-07-25--008--embeddings-rag-second-brain.md) §7). Sekcje o LightRAG poniżej zachowane jako zapis historyczny.
+> **Aktualizacja 2026-07-27.** Wiki (plan 010) — **done**. Memory graph (plan 011): etap 1 facade **done**; etap 2 spike scaffolding **done**, bramka metryk czeka na `OPENROUTER_API_KEY`; etapy 3+ wciąż bramkowane.
 
 ## Cel
 
@@ -214,9 +213,9 @@ Zajęte dziś: app `8003`, Postgres `5435`, Redis `6382`, Vite `5176`.
 | gate-rag-basics | 2 | Domknąć podstawy RAG (retrieval, ACL, memory UPDATE). **✅ done** — UPDATE ([005](2026-07-23--005--memory-update.md)) + retrieval/chunki ([006](2026-07-23--006--rag-retrieval-chunks.md)) |
 | spike-docker-mcp | 3 | Spike LightRAG 1–2 dni (metryki + porty powyżej). **✅ zamknięty bez wykonania** — patrz `decide-path` |
 | decide-path | 3 | Go/no-go LightRAG. **✅ rozstrzygnięte 2026-07-25: NO-GO** (research 008 §7). Idziemy wprost ścieżką no-go zdefiniowaną w tym planie („retrieval tylko u nas, pgvector na wiki/chunkach"). Powody: duplikacja store'u względem naszego pipeline'u chunków, ACL w warstwie aplikacji zamiast w SQL przed rankingiem, koszt ops na VPS. Porty `9621`/`8010` **zwolnione**. |
-| path-mcp-or-pages | 3 | Migracja `wiki_pages`/`wiki_links` + serwis + toole. → rozpisane w [planie 010](2026-07-25--010--phase-4-5-second-brain-wiki.md) (bez adaptera LightRAG) |
-| wiki-folder-browser | 3 | UI: foldery + podgląd + graf. → [plan 010](2026-07-25--010--phase-4-5-second-brain-wiki.md) |
-| later-graphiti-memory | 4 | Graphiti: facade → migracja → dual-read → cutover → rollback plan. → [plan 011](2026-07-25--011--memory-graph-graphiti.md) (bramkowany) |
+| path-mcp-or-pages | 3 | Migracja `wiki_pages`/`wiki_links` + serwis + toole. → [plan 010](2026-07-25--010--phase-4-5-second-brain-wiki.md) **✅ done (2026-07-27)** |
+| wiki-folder-browser | 3 | UI: foldery + podgląd + graf. → [plan 010](2026-07-25--010--phase-4-5-second-brain-wiki.md) **✅ done (2026-07-27)** |
+| later-graphiti-memory | 4 | Graphiti: facade → migracja → dual-read → cutover → rollback plan. → [plan 011](2026-07-25--011--memory-graph-graphiti.md) (bramkowany) — **etap 1 ✅; etap 2 scaffolding ✅, bramka czeka na klucz API** |
 
 ## Testy
 
