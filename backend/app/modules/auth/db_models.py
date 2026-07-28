@@ -103,3 +103,9 @@ class OAuthConnectionDB(Base):
 
     def __repr__(self) -> str:
         return f"<OAuthConnectionDB(id={self.id}, user_id={self.user_id}, provider={self.provider})>"
+
+
+# UserDB declares FKs to tenants.id / teams.id. Import those models so SQLAlchemy
+# metadata can resolve them during flush (CLI / scripts that only load UserDB).
+from app.modules.teams import db_models as _teams_db_models  # noqa: E402, F401
+from app.modules.tenants import db_models as _tenants_db_models  # noqa: E402, F401
