@@ -894,6 +894,81 @@ class AISettings(BaseSettings):
         validation_alias="MEMORY_BACKEND",
         description="Memory persistence backend: pgvector (default) or graphiti",
     )
+    web_search_mode: str = Field(
+        default="server",
+        validation_alias="AI_WEB_SEARCH_MODE",
+        description=("How web search runs: 'server' (OpenRouter executes it, zero extra config), " "'local' (our own tools + provider, full trace and cache), or 'off'"),
+    )
+    web_search_provider: str = Field(
+        default="tavily",
+        validation_alias="AI_WEB_SEARCH_PROVIDER",
+        description="Provider used in local mode (currently: tavily)",
+    )
+    web_search_api_key: str = Field(
+        default="",
+        validation_alias="AI_WEB_SEARCH_API_KEY",
+        description="API key for the local-mode web search provider",
+    )
+    web_search_base_url: str = Field(
+        default="https://api.tavily.com",
+        validation_alias="AI_WEB_SEARCH_BASE_URL",
+        description="Base URL for the local-mode web search provider",
+    )
+    web_search_max_results: int = Field(
+        default=5,
+        validation_alias="AI_WEB_SEARCH_MAX_RESULTS",
+        description="Default number of web results per search (billed per result)",
+        ge=1,
+        le=25,
+    )
+    web_search_timeout: float = Field(
+        default=15.0,
+        validation_alias="AI_WEB_SEARCH_TIMEOUT",
+        description="Timeout for web search / fetch provider calls (seconds)",
+        gt=0,
+    )
+    web_search_cache_ttl: int = Field(
+        default=900,
+        validation_alias="AI_WEB_SEARCH_CACHE_TTL",
+        description="Redis TTL for web search results (seconds); 0 disables caching",
+        ge=0,
+    )
+    web_fetch_cache_ttl: int = Field(
+        default=3600,
+        validation_alias="AI_WEB_FETCH_CACHE_TTL",
+        description="Redis TTL for fetched page content (seconds); 0 disables caching",
+        ge=0,
+    )
+    web_fetch_max_bytes: int = Field(
+        default=2_000_000,
+        validation_alias="AI_WEB_FETCH_MAX_BYTES",
+        description="Hard cap on bytes read from a fetched page",
+        gt=0,
+    )
+    web_fetch_max_chars: int = Field(
+        default=8000,
+        validation_alias="AI_WEB_FETCH_MAX_CHARS",
+        description="Default character budget for page content handed to the model",
+        gt=0,
+    )
+    web_fetch_blocked_hosts: str | list[str] = Field(
+        default_factory=list,
+        validation_alias="AI_WEB_FETCH_BLOCKED_HOSTS",
+        description="Extra hostnames/suffixes web_fetch must refuse (private ranges are always blocked)",
+    )
+
+    @field_validator("web_fetch_blocked_hosts", mode="after")
+    @classmethod
+    def parse_blocked_hosts(cls, v: str | list[str]) -> list[str]:
+        return [host.strip().lower() for host in parse_list_value(v) if host.strip()]
+
+    @field_validator("web_search_mode")
+    @classmethod
+    def validate_web_search_mode(cls, v: str) -> str:
+        allowed = {"server", "local", "off"}
+        if v not in allowed:
+            raise ValueError(f"AI_WEB_SEARCH_MODE must be one of {sorted(allowed)}, got: {v!r}")
+        return v
 
     @field_validator("memory_backend")
     @classmethod
@@ -1068,13 +1143,18 @@ class WorkspaceSettings(BaseSettings):
         validation_alias="WORKSPACE_DEFAULT_TOOLS_ENABLED",
         description="Whether agent tools are enabled by default",
     )
+    default_web_search_enabled: bool = Field(
+        default=True,
+        validation_alias="WORKSPACE_DEFAULT_WEB_SEARCH_ENABLED",
+        description=("Whether web_search / web_fetch are available by default. On because " "the default 'server' mode needs no extra key — but web results are " "billed per result, so tenants may narrow this in the cascade."),
+    )
 
     @field_validator("default_allowed_models", mode="after")
     @classmethod
     def parse_allowed_models(cls, v: str | list[str]) -> list[str]:
         return parse_list_value(v)
 
-    @field_validator("default_rag_enabled", "default_tools_enabled", mode="before")
+    @field_validator("default_rag_enabled", "default_tools_enabled", "default_web_search_enabled", mode="before")
     @classmethod
     def parse_workspace_bools(cls, v: str | bool) -> bool:
         return parse_bool_value(v)

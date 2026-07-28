@@ -26,7 +26,7 @@ from app.modules.tenants.service import TenantContext
 
 router = APIRouter(tags=["agent-definitions"])
 
-TOOL_BUCKETS = ("github", "gmail", "jira", "gitlab", "memory", "rag")
+TOOL_BUCKETS = ("github", "gmail", "jira", "gitlab", "memory", "rag", "wiki", "web")
 
 
 def _get_agent_def_service(

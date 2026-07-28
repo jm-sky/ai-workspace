@@ -22,5 +22,6 @@ Plany implementacji funkcji i większych zmian.
 | 010 | [2026-07-25--010--phase-4-5-second-brain-wiki.md](2026-07-25--010--phase-4-5-second-brain-wiki.md) | Faza 4.5 — Second Brain: wiki_pages/wiki_links, toole bibliotekarza, przeglądarka folderów (pgvector-only) | done |
 | 011 | [2026-07-25--011--memory-graph-graphiti.md](2026-07-25--011--memory-graph-graphiti.md) | Memory graph — facade MemoryBackend + bramkowany spike/cutover Graphiti | in progress |
 | 012 | [2026-07-28--012--composer-plus-menu.md](2026-07-28--012--composer-plus-menu.md) | Composer „+” menu — pliki + soft context GitHub/Gmail/Knowledge | done |
+| 013 | [2026-07-28--013--web-search.md](2026-07-28--013--web-search.md) | Web search + web fetch — hybryda server/local, blok `sources`, SSRF guard | verification needed |
 
 When adding a new entry: pick next `NNN`, create `YYYY-MM-DD--NNN--slug.md`, add a row here.

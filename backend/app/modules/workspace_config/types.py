@@ -18,6 +18,7 @@ class ConfigKey(StrEnum):
     MAX_TOKENS = "max_tokens"
     RAG_ENABLED = "rag_enabled"
     TOOLS_ENABLED = "tools_enabled"
+    WEB_SEARCH_ENABLED = "web_search_enabled"
 
 
 class EffectiveWorkspaceConfig(BaseModel):
@@ -30,6 +31,7 @@ class EffectiveWorkspaceConfig(BaseModel):
     maxTokens: int | None = None
     ragEnabled: bool = False
     toolsEnabled: bool = True
+    webSearchEnabled: bool = True
 
 
 class ConfigEntryRequest(BaseModel):

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpen, Github, Mail, X } from 'lucide-vue-next'
+import { BookOpen, Github, Globe, Mail, X } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
@@ -27,6 +27,8 @@ const icon = computed(() => {
       return Mail
     case 'knowledge':
       return BookOpen
+    case 'web':
+      return Globe
     default:
       return BookOpen
   }

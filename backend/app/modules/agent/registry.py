@@ -34,10 +34,10 @@ BUILTIN_AGENTS: dict[str, AgentDefinition] = {
         name="GitHub Workspace",
         description=(
             "Explore GitHub repositories, issues, and PRs; read Gmail when connected; "
-            "use memory and RAG."
+            "search the web; use memory and RAG."
         ),
         system_prompt=GITHUB_WORKSPACE_SYSTEM_PROMPT,
-        tool_profile=("github", "gmail", "memory", "rag", "wiki"),
+        tool_profile=("github", "gmail", "memory", "rag", "wiki", "web"),
         rag_enabled=True,
         is_default=True,
         routing_hints={
@@ -47,9 +47,9 @@ BUILTIN_AGENTS: dict[str, AgentDefinition] = {
     "general": AgentDefinition(
         key="general",
         name="General",
-        description="Open conversation with memory and optional RAG — no GitHub/Gmail tools.",
+        description="Open conversation with memory, web search and optional RAG — no GitHub/Gmail tools.",
         system_prompt=GENERAL_SYSTEM_PROMPT,
-        tool_profile=("memory", "rag", "wiki"),
+        tool_profile=("memory", "rag", "wiki", "web"),
         rag_enabled=True,
         routing_hints={
             "triggers": ["chat", "help", "remember", "general"],

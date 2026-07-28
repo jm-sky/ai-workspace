@@ -103,7 +103,7 @@ class AgentAdminListResponse(BaseModel):
 class RichBlock(BaseModel):
     """Rich UI block rendered alongside Markdown."""
 
-    type: Literal["card", "table", "markdown", "chart"]
+    type: Literal["card", "table", "markdown", "chart", "sources"]
     title: str | None = None
     data: dict[str, Any] = Field(default_factory=dict)
 
@@ -129,6 +129,22 @@ class ChartBlockData(BaseModel):
     xLabel: str | None = None
     yLabel: str | None = None
     series: list[ChartSeries]
+
+
+class SourceItem(BaseModel):
+    """One cited web source, numbered as the model saw it."""
+
+    index: int
+    url: str
+    title: str | None = None
+    snippet: str | None = None
+    publishedAt: str | None = None
+
+
+class SourcesBlockData(BaseModel):
+    """Payload validated from a tool's `sources` convention (plan 013 dec. #5)."""
+
+    items: list[SourceItem]
 
 
 class AgentRunStepResponse(BaseModel):

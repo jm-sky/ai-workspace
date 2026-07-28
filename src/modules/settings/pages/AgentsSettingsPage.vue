@@ -19,7 +19,8 @@ import {
 import { getApiErrorMessage } from '@/shared/utils/apiError'
 import type { IAgentDetail } from '@/modules/workspace/types/agent'
 
-const TOOL_BUCKETS = ['github', 'gmail', 'jira', 'gitlab', 'memory', 'rag'] as const
+// Must stay in sync with TOOL_BUCKETS in backend agent/routers/agents.py.
+const TOOL_BUCKETS = ['github', 'gmail', 'jira', 'gitlab', 'memory', 'rag', 'wiki', 'web'] as const
 
 const { t } = useI18n()
 const tenantStore = useTenantStore()
