@@ -27,7 +27,7 @@ Do not change architectural decisions without user confirmation.
 | Vite dev server | — | `5176` |
 
 - Set `COMPOSE_PROJECT_NAME=ai-workspace` in `backend/.env`
-- Dev stack: `docker-compose.dev.yml` (repo root; `compose.yaml` include)
+- Dev stack: `docker-compose.dev.yml` (repo root)
 - Optional MinIO dev: `backend/docker-compose.dev-minio.yml` (ports `9010`/`9011`)
 
 **CLI:**

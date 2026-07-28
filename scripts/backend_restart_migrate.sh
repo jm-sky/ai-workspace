@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Rebuild and restart the backend, then run migrations.
 # Uses auto-detect for the active Docker Compose stack (running container labels,
-# else root compose.yaml).
+# else repo-root compose files).
 #
 # Usage:
 #   COMPOSE_DIR=... COMPOSE_FILE=... bash scripts/backend_restart_migrate.sh
@@ -37,7 +37,7 @@ resolve_compose_context
 
 if [ -z "$COMPOSE_FILE" ] || [ -z "$COMPOSE_DIR" ]; then
   echo -e "${RED}Error: Could not detect docker-compose file${NC}" >&2
-  echo -e "${YELLOW}Set COMPOSE_DIR and COMPOSE_FILE, or ensure compose.yaml exists in project root.${NC}" >&2
+  echo -e "${YELLOW}Set COMPOSE_DIR and COMPOSE_FILE, or ensure a compose file exists in the project root.${NC}" >&2
   exit 1
 fi
 

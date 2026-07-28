@@ -41,13 +41,11 @@ detect_compose_context() {
     fi
   fi
 
-  # Fallback priority: root compose.yaml (canonical), then other root files, then legacy backend/.
-  if [ -f "$PROJECT_DIR/compose.yaml" ]; then
-    echo "${PROJECT_DIR}|compose.yaml"
+  # Fallback priority: root dev stack, then other root files, then legacy backend/.
+  if [ -f "$PROJECT_DIR/docker-compose.dev.yml" ]; then
+    echo "${PROJECT_DIR}|docker-compose.dev.yml"
   elif [ -f "$PROJECT_DIR/docker-compose.yml" ]; then
     echo "${PROJECT_DIR}|docker-compose.yml"
-  elif [ -f "$PROJECT_DIR/docker-compose.dev.yml" ]; then
-    echo "${PROJECT_DIR}|docker-compose.dev.yml"
   elif [ -f "$PROJECT_DIR/docker-compose.prod.yml" ]; then
     echo "${PROJECT_DIR}|docker-compose.prod.yml"
   elif [ -f "$BACKEND_DIR/docker-compose.dev.yml" ]; then
