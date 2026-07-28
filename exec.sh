@@ -49,10 +49,16 @@ fi
 
 cd "$COMPOSE_DIR"
 
+# shellcheck disable=SC2207
+COMPOSE_ENV_ARGS=($(compose_env_file_args))
+compose() {
+  docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" "$@"
+}
+
 # Check if container is running
-if ! docker compose -f "$COMPOSE_FILE" ps --services --filter status=running | grep -q '^app$'; then
+if ! compose ps --services --filter status=running | grep -q '^app$'; then
   echo -e "${YELLOW}Warning: Service 'app' is not running. Starting it...${NC}"
-  docker compose -f "$COMPOSE_FILE" up -d app
+  compose up -d app
 
   # Wait a bit for container to be ready
   echo -e "${YELLOW}Waiting for container to be ready...${NC}"
@@ -68,4 +74,4 @@ fi
 
 # Execute command in container
 echo -e "${GREEN}Executing in container (${COMPOSE_FILE}):${NC} ${CMD_ARGS[*]}"
-docker compose -f "$COMPOSE_FILE" exec app "${CMD_ARGS[@]}"
+compose exec app "${CMD_ARGS[@]}"

@@ -62,16 +62,24 @@ echo -e "${GREEN}Restarting backend (${COMPOSE_DISPLAY})...${NC}"
 
 cd "$COMPOSE_DIR"
 
-echo -e "${YELLOW}Building app image...${NC}"
-docker compose -f "$COMPOSE_FILE" build app
+# shellcheck disable=SC2207
+COMPOSE_ENV_ARGS=($(compose_env_file_args))
+compose() {
+  docker compose "${COMPOSE_ENV_ARGS[@]}" -f "$COMPOSE_FILE" "$@"
+}
 
-echo -e "${YELLOW}Recreating app container...${NC}"
-docker compose -f "$COMPOSE_FILE" up -d --force-recreate app
+echo -e "${YELLOW}Building app image...${NC}"
+compose build app
+
+# Recreate redis so requirepass matches backend/.env (command-line password is
+# re-applied on each start; app REDIS_URL comes from the same file).
+echo -e "${YELLOW}Recreating redis + app containers...${NC}"
+compose up -d --force-recreate redis app
 
 echo -e "${YELLOW}Waiting for app to be healthy...${NC}"
 sleep 5
 
 echo -e "${YELLOW}Running migrations...${NC}"
-docker compose -f "$COMPOSE_FILE" exec app python cli.py db migrate
+compose exec app python cli.py db migrate
 
 echo -e "${GREEN}Backend restarted and migrations applied (${COMPOSE_DISPLAY})${NC}"
