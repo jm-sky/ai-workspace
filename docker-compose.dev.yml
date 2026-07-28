@@ -71,16 +71,15 @@ services:
       redis:
         condition: service_healthy
     env_file:
-      # Secrets and app config live here. Do not re-list them under environment:
-      # with ${VAR} — empty host interpolation would override env_file values.
+      # Secrets and app config live here (DATABASE_URL, REDIS_URL, …).
+      # Do not re-list them under environment: with ${VAR} — host/root .env
+      # interpolation (or defaults like changeme) would override env_file values.
       - ./backend/.env
     environment:
-      # Docker-network overrides only
+      # Non-secret runtime defaults only (must not shadow secrets from env_file)
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - PROJECT_NAME=${PROJECT_NAME:-ai-workspace}
       - APP_PORT=${APP_PORT:-8000}
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-backend}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-backend}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:6379/0
       - LOG_LEVEL=${LOG_LEVEL:-DEBUG}
     ports:
       - "127.0.0.1:${APP_PORT:-8003}:8000"  # Only localhost access (Caddy proxy)

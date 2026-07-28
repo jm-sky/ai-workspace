@@ -150,18 +150,31 @@ const handleCopyRun = async () => {
 <template>
   <ChatLayout>
     <template #header-center>
-      <ChatToolbar
-        v-model:agent-key="selectedAgentKey"
-        :active-run="activeRun"
-        :step-count="steps.length"
-        :audit-open="auditOpen"
-        :agent-locked="agentLocked"
-        @open-audit="auditOpen = true"
-      />
+      <div class="hidden md:block">
+        <ChatToolbar
+          v-model:agent-key="selectedAgentKey"
+          :active-run="activeRun"
+          :step-count="steps.length"
+          :audit-open="auditOpen"
+          :agent-locked="agentLocked"
+          @open-audit="auditOpen = true"
+        />
+      </div>
     </template>
 
     <div class="flex min-h-0 flex-1 flex-col">
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div class="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 px-3 py-2 sm:px-4 md:hidden">
+          <ChatToolbar
+            v-model:agent-key="selectedAgentKey"
+            :active-run="activeRun"
+            :step-count="steps.length"
+            :audit-open="auditOpen"
+            :agent-locked="agentLocked"
+            @open-audit="auditOpen = true"
+          />
+        </div>
+
         <div
           v-if="sessionsError || error || isLoadingRun"
           class="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 px-3 py-2 sm:px-4"

@@ -8,6 +8,14 @@
 BACKEND_DIR="${BACKEND_DIR:-$PROJECT_DIR/backend}"
 APP_CONTAINER_NAME="${APP_CONTAINER_NAME:-ai-workspace-app}"
 
+# Compose ${VAR} interpolation reads the project .env / --env-file, NOT service
+# env_file. Prefer backend/.env so POSTGRES_PASSWORD / REDIS_PASSWORD match the app.
+compose_env_file_args() {
+  if [ -f "$BACKEND_DIR/.env" ]; then
+    echo --env-file "$BACKEND_DIR/.env"
+  fi
+}
+
 # Detect compose working dir and file from running containers.
 detect_compose_context() {
   local container_name=""

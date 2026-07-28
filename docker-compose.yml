@@ -73,13 +73,13 @@ services:
       redis:
         condition: service_healthy
     env_file:
+      # Secrets (DATABASE_URL, REDIS_URL, SECRET_KEY, …) come from here.
+      # Do not interpolate them under environment: — empty host vars override env_file.
       - ./backend/.env
     environment:
       - ENVIRONMENT=${ENVIRONMENT:-development}
       - PROJECT_NAME=${PROJECT_NAME:-ai-workspace}
       - APP_PORT=${APP_PORT:-8000}
-      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-backend}:${POSTGRES_PASSWORD:-ai-workspace-db-secret}@db:5432/${POSTGRES_DB:-backend}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-ai-workspace-redis-secret}@redis:6379/0
       - SECRET_KEY=${SECRET_KEY}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - CORS_ORIGINS=${CORS_ORIGINS:-["http://localhost:5176"]}
