@@ -45,6 +45,7 @@ COMMAND_GROUPS = {
             "create": "Create a new user",
             "list": "List all users",
             "delete": "Delete a user",
+            "change-password": "Change a user's password",
             "verify-email": "Show or confirm email verification",
             "set-role": "Set user role (user, premium, admin, owner)",
             "toggle-admin": "Toggle admin status for a user",
