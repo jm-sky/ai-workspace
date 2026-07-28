@@ -16,13 +16,14 @@ from fastapi.testclient import TestClient
 from app.core.auth.dependencies import get_token_blacklist_service
 from app.core.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 from app.modules.auth.auth_utils import create_refresh_token
+from app.modules.auth.cookies import refresh_cookie_name
 from app.modules.auth.dependencies import get_auth_service, get_current_token, get_current_user
 from app.modules.auth.models import User
 from app.modules.auth.schemas import LoginResponse, UserResponse
 from app.modules.auth.service import AuthService
 from main import app
 
-REFRESH_COOKIE_NAME = "refresh_token"
+REFRESH_COOKIE_NAME = refresh_cookie_name()
 
 
 @pytest.fixture

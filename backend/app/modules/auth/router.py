@@ -27,7 +27,7 @@ from app.core.database import get_db
 from app.core.email.i18n import determine_email_locale, get_translations
 
 from .auth_utils import verify_token
-from .cookies import REFRESH_COOKIE_NAME, clear_refresh_cookie, set_refresh_cookie
+from .cookies import clear_refresh_cookie, refresh_cookie_name, set_refresh_cookie
 from .decorators import rate_limit, recaptcha_protected
 from .dependencies import AuthServiceDep, CurrentUser, get_current_token
 from .exceptions import (
@@ -192,7 +192,7 @@ async def refresh_token(auth_service: AuthServiceDep, request: Request, response
     - ✅ Rate limiting: 20 requests/minute (enabled)
     - ✅ Refresh token rotation (new refresh token + jti issued every call)
     """
-    refresh_token_value = request.cookies.get(REFRESH_COOKIE_NAME)
+    refresh_token_value = request.cookies.get(refresh_cookie_name())
     if not refresh_token_value:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -206,7 +206,7 @@ async def refresh_token(auth_service: AuthServiceDep, request: Request, response
     except InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=str(e),
+            detail=str(e) or "Invalid refresh token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from e
 
