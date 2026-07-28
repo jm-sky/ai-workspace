@@ -287,5 +287,7 @@ def test_build_tool_registry_above_threshold_defers():
     }
     assert "rag_search" not in active
     assert registry.has_deferred()
-    # 10 github + 3 memory + 1 rag + tool_search
-    assert len(registry.all_openai_tools()) == 15
+    # 10 github + 3 gmail + 3 memory + 1 rag + 3 wiki + tool_search.
+    # Web tools are absent: this test's patched settings leave web_search_mode
+    # unset, so the bucket only registers tools in local mode.
+    assert len(registry.all_openai_tools()) == 21

@@ -62,7 +62,13 @@ export const workspacePl = {
           github: 'GitHub',
           gmail: 'Gmail',
           knowledge: 'Wiedza',
+          web: 'Szukaj w sieci',
         },
+      },
+    },
+    blocks: {
+      sources: {
+        title: 'Źródła',
       },
     },
     memory: {

@@ -34,7 +34,7 @@ def _service(effective: EffectiveWorkspaceConfig) -> AgentRunService:
 
 
 async def _resolve(effective: EffectiveWorkspaceConfig, requested: str | None) -> str:
-    model, _rag_enabled = await _service(effective)._resolve_model(
+    model, _rag_enabled, _web_search_enabled = await _service(effective)._resolve_model(
         user_id="user-1",
         tenant_ctx=MagicMock(tenant_id="tenant-1", team_id=None),
         requested_model=requested,

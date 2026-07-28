@@ -17,6 +17,7 @@ SOURCE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "github": ("github", "git hub"),
     "gmail": ("gmail",),
     "teams": ("teams",),
+    "web": ("w internecie", "w sieci", "web search", "search the web", "google it"),
 }
 
 

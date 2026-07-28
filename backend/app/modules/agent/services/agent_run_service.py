@@ -64,8 +64,8 @@ class AgentRunService:
         tenant_ctx: TenantContext,
         requested_model: str | None,
         agent_model: str | None = None,
-    ) -> tuple[str, bool]:
-        """Return ``(resolved_model, rag_enabled)`` for the workspace.
+    ) -> tuple[str, bool, bool]:
+        """Return ``(resolved_model, rag_enabled, web_search_enabled)`` for the workspace.
 
         Agent-level ``model`` is used when the request does not override it.
         """
@@ -88,14 +88,14 @@ class AgentRunService:
                 raise AgentNotConfiguredError("No model configured for workspace")
             if has_live_catalog() and not get_model_by_id(model):
                 raise AgentNotConfiguredError(f"Unknown model for workspace: {model}")
-            return model, effective.ragEnabled
+            return model, effective.ragEnabled, effective.webSearchEnabled
 
         if model and model in effective.allowedModels:
-            return model, effective.ragEnabled
+            return model, effective.ragEnabled, effective.webSearchEnabled
         # Agent model outside allow-list → fall back to first allowed / default
         if effective.defaultModel and effective.defaultModel in effective.allowedModels:
-            return effective.defaultModel, effective.ragEnabled
-        return effective.allowedModels[0], effective.ragEnabled
+            return effective.defaultModel, effective.ragEnabled, effective.webSearchEnabled
+        return effective.allowedModels[0], effective.ragEnabled, effective.webSearchEnabled
 
     async def run_stream(
         self,
@@ -125,13 +125,17 @@ class AgentRunService:
         agent_key = definition.key
         resolved = decision
 
-        resolved_model, workspace_rag = await self._resolve_model(
+        resolved_model, workspace_rag, workspace_web_search = await self._resolve_model(
             user_id=tenant_ctx.user_id,
             tenant_ctx=tenant_ctx,
             requested_model=model,
             agent_model=definition.model,
         )
         rag_enabled = workspace_rag and definition.rag_enabled
+        web_search_enabled = workspace_web_search and "web" in definition.tool_profile
+        # In server mode OpenRouter executes the web tools; in local mode they are
+        # registered in our own tool registry instead.
+        server_web_tools = web_search_enabled and settings.ai.web_search_mode == "server"
         base_prompt = definition.system_prompt
 
         attachment_service = ChatAttachmentService(self.db)
@@ -186,6 +190,7 @@ class AgentRunService:
             agent_key=agent_key,
             session_id=session_id,
             rag_enabled=rag_enabled,
+            web_search_enabled=web_search_enabled,
             tool_profile=definition.tool_profile,
         )
 
@@ -196,6 +201,7 @@ class AgentRunService:
             message=message,
             agent_key=agent_key,
             session_id=session_id,
+            server_web_tools=server_web_tools,
         )
         if system_prompt != run.system_prompt:
             run.system_prompt = system_prompt
@@ -206,6 +212,7 @@ class AgentRunService:
             system_prompt=system_prompt,
             tool_registry=tool_registry,
             agent_key=agent_key,
+            server_web_tools=server_web_tools,
         )
 
         step_index = 0
@@ -228,6 +235,7 @@ class AgentRunService:
                         event=event,
                         user_message=message,
                         tool_registry=tool_registry,
+                        extra_providers={"web"} if server_web_tools else None,
                     )
                     raw_enabled = settings.ai.audit_raw_enabled
                     raw_expiry = _raw_expiry()
@@ -315,6 +323,7 @@ class AgentRunService:
         message: str,
         agent_key: str,
         session_id: str,
+        server_web_tools: bool = False,
     ) -> str:
         """Assemble the system prompt: base + user context + tools + memory."""
         sections: list[str] = []
@@ -323,7 +332,7 @@ class AgentRunService:
         if user_context:
             sections.append(user_context)
 
-        tool_catalog = _build_tool_catalog(tool_registry)
+        tool_catalog = _build_tool_catalog(tool_registry, server_web_tools=server_web_tools)
         if tool_catalog:
             sections.append(tool_catalog)
 
@@ -374,6 +383,7 @@ class AgentRunService:
         event: AgentLoopEvent,
         user_message: str,
         tool_registry: AgentToolRegistry,
+        extra_providers: set[str] | None = None,
     ) -> None:
         """Append a warning if the user named a source the agent never queried."""
         steps = event.data.get("stepsTrace", [])
@@ -381,7 +391,7 @@ class AgentRunService:
         warnings = check_source_mismatch(
             user_message=user_message,
             tools_used=tools_used,
-            available_providers=_available_providers(tool_registry),
+            available_providers=_available_providers(tool_registry) | (extra_providers or set()),
         )
         if not warnings:
             return
@@ -541,12 +551,16 @@ def _derive_title(message: str) -> str:
     return text[:59].rstrip() + "…"
 
 
-def _build_tool_catalog(tool_registry: AgentToolRegistry) -> str:
+def _build_tool_catalog(tool_registry: AgentToolRegistry, *, server_web_tools: bool = False) -> str:
     """Render active tools into the system prompt so names never drift."""
     tools = tool_registry.openai_tools()
-    if not tools and not tool_registry.has_deferred():
+    if not tools and not tool_registry.has_deferred() and not server_web_tools:
         return ""
     lines = ["## AVAILABLE TOOLS"]
+    if server_web_tools:
+        # Executed by OpenRouter, so they never appear in our registry.
+        lines.append("- `web_search` — search the web for current information; cite results as [1], [2]")
+        lines.append("- `web_fetch` — read the full content of a page found via web_search")
     for tool in tools:
         fn = tool.get("function", {})
         name = fn.get("name", "")
