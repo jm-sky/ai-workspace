@@ -95,8 +95,8 @@ const handleLogout = async () => {
         </RouterLink>
       </div>
 
-      <div class="ml-auto flex shrink-0 items-center justify-end space-x-1 sm:mr-6 sm:space-x-2">
-        <nav class="flex items-center space-x-2">
+      <div class="ml-auto flex shrink-0 items-center justify-end gap-x-2 mr-2">
+        <nav class="flex items-center gap-x-1">
           <LocaleToggle />
           <DarkModeToggle />
           <UserNav

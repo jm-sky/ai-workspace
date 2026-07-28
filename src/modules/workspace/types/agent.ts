@@ -157,6 +157,7 @@ export interface IAgentChatMessage {
   runId?: string
   blocks?: IRichBlock[]
   attachments?: import('@/modules/workspace/types/attachments').IChatAttachment[]
+  contextHints?: import('@/modules/workspace/types/contextHints').IComposerContextHint[]
 }
 
 export interface IAgentStreamStepEvent {

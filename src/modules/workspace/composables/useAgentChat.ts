@@ -5,6 +5,7 @@ import {
   getAgentSession,
   streamAgentChat,
 } from '@/modules/workspace/services/agentApiService'
+import { mergeMessageWithContextHints } from '@/modules/workspace/types/contextHints'
 import { getApiErrorMessage } from '@/shared/utils/apiError'
 import type {
   AgentStepType,
@@ -15,6 +16,7 @@ import type {
   IRichBlock,
 } from '@/modules/workspace/types/agent'
 import type { IChatAttachment } from '@/modules/workspace/types/attachments'
+import type { IComposerContextHint } from '@/modules/workspace/types/contextHints'
 
 function mapPersistedStep(step: IAgentRunStep): IAgentStreamStepEvent {
   return {
@@ -68,9 +70,11 @@ export function useAgentChat(
   const sendMessage = async (
     message: string,
     attachmentPayload?: IChatAttachment[],
+    contextHintPayload?: IComposerContextHint[],
   ): Promise<string | undefined> => {
     const trimmed = message.trim()
     const files = attachmentPayload ?? []
+    const hints = contextHintPayload ?? []
     if ((!trimmed && files.length === 0) || isLoading.value) return undefined
 
     isStreaming.value = true
@@ -78,11 +82,14 @@ export function useAgentChat(
     steps.value = []
     activeRun.value = null
 
+    const outboundMessage = mergeMessageWithContextHints(trimmed, hints)
+
     const userMessage: IAgentChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: trimmed,
       attachments: files.length ? files : undefined,
+      contextHints: hints.length ? hints : undefined,
     }
     messages.value.push(userMessage)
 
@@ -95,7 +102,7 @@ export function useAgentChat(
     try {
       await streamAgentChat(
         {
-          message: trimmed || ' ',
+          message: outboundMessage || ' ',
           agentKey: activeSessionId.value ? undefined : agentKey,
           model: getSelectedModel?.(),
           sessionId: activeSessionId.value,

@@ -33,13 +33,13 @@ const auditDisabled = computed(() => !activeRun && (stepCount ?? 0) === 0)
 </script>
 
 <template>
-  <div class="flex shrink-0 flex-nowrap items-center gap-2">
+  <div class="flex min-w-0 flex-nowrap items-center justify-center gap-1.5 sm:gap-2">
     <AgentPicker
       v-model="agentKey"
       :locked="agentLocked"
     />
 
-    <div class="min-w-0 flex-1">
+    <div class="min-w-0 w-[9.5rem] sm:w-[13rem]">
       <WorkspaceModelSelector />
     </div>
 
@@ -48,7 +48,7 @@ const auditDisabled = computed(() => !activeRun && (stepCount ?? 0) === 0)
         <Button
           variant="outline"
           size="icon"
-          class="relative shrink-0"
+          class="relative size-8 shrink-0"
           :disabled="auditDisabled"
           :class="auditOpen ? 'bg-accent' : ''"
           :aria-label="t('workspace.audit.open')"

@@ -34,9 +34,16 @@ useChatSessionNav({
 
 <template>
   <SidebarProvider>
-    <ChatSidebar class="mt-(--header-height) shadow-sidebar" />
+    <ChatSidebar class="top-(--header-height) h-[calc(100svh-var(--header-height))] shadow-sidebar" />
     <SidebarInset class="flex h-dvh flex-col overflow-hidden bg-surface-canvas pt-14">
-      <ChatHeader />
+      <ChatHeader>
+        <template
+          v-if="$slots['header-center']"
+          #center
+        >
+          <slot name="header-center" />
+        </template>
+      </ChatHeader>
       <main class="flex min-h-0 flex-1 flex-col overflow-hidden">
         <slot />
       </main>

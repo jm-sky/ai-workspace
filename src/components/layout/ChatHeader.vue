@@ -84,19 +84,26 @@ const handleLogout = async () => {
 <template>
   <header class="fixed left-0 top-0 z-50 w-full shrink-0 border-b border-hairline bg-surface-canvas/80 shadow-soft backdrop-blur-md">
     <div class="mx-auto flex h-(--header-height) items-center gap-2 px-2 sm:px-3">
-      <div class="flex min-w-0 items-center gap-2 md:w-(--sidebar-width) md:gap-4 md:pl-1">
+      <div class="flex min-w-0 shrink-0 items-center gap-2 md:w-(--sidebar-width) md:gap-4 md:pl-1">
         <SidebarTrigger class="shrink-0 opacity-70 hover:opacity-100" />
         <RouterLink
           :to="WorkspaceRoutePath.Chat"
           class="flex min-w-0 items-center gap-1.5 transition-opacity hover:opacity-80 sm:gap-2"
         >
           <AppIcon class="size-6 shrink-0 sm:size-7" />
-          <LogoText class="truncate" />
+          <LogoText class="hidden truncate sm:inline" />
         </RouterLink>
       </div>
 
-      <div class="ml-auto flex shrink-0 items-center justify-end gap-1 sm:mr-3 sm:gap-2">
-        <nav class="flex items-center space-x-2">
+      <div
+        v-if="$slots.center"
+        class="flex min-w-0 flex-1 items-center justify-center overflow-hidden px-1"
+      >
+        <slot name="center" />
+      </div>
+
+      <div class="ml-auto flex shrink-0 items-center justify-end gap-1 mr-2">
+        <nav class="flex items-center gap-x-1">
           <LocaleToggle />
           <DarkModeToggle />
           <UserNav

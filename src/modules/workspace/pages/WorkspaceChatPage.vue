@@ -9,12 +9,14 @@ import AgentAuditSheet from '@/modules/workspace/components/AgentAuditSheet.vue'
 import AgentMarkdown from '@/modules/workspace/components/AgentMarkdown.vue'
 import AgentRichBlocks from '@/modules/workspace/components/AgentRichBlocks.vue'
 import ChatComposer from '@/modules/workspace/components/ChatComposer.vue'
+import ChatContextChip from '@/modules/workspace/components/ChatContextChip.vue'
 import ChatThinkingIndicator from '@/modules/workspace/components/ChatThinkingIndicator.vue'
 import ChatToolbar from '@/modules/workspace/components/ChatToolbar.vue'
 import ChatToolSteps from '@/modules/workspace/components/ChatToolSteps.vue'
 import { useAgentChat } from '@/modules/workspace/composables/useAgentChat'
 import { useAgentSessions } from '@/modules/workspace/composables/useAgentSessions'
 import { useChatAttachments } from '@/modules/workspace/composables/useChatAttachments'
+import { useComposerContextHints } from '@/modules/workspace/composables/useComposerContextHints'
 import { useWorkspaceModels } from '@/modules/workspace/composables/useWorkspaceModels'
 
 const { t } = useI18n()
@@ -36,6 +38,13 @@ const {
   takeAttachments,
   ATTACHMENT_ACCEPT,
 } = useChatAttachments()
+
+const {
+  contextHints,
+  addContextHint,
+  removeContextHint,
+  takeContextHints,
+} = useComposerContextHints()
 
 const visionAllowed = computed(() => selectedModel.value?.supports_vision ?? false)
 
@@ -119,8 +128,9 @@ const handleSubmit = async () => {
     return
   }
   const pending = takeAttachments()
+  const pendingHints = takeContextHints()
   input.value = ''
-  await sendMessage(text, pending)
+  await sendMessage(text, pending, pendingHints)
   await loadSessions()
   if (activeSessionId.value) {
     await setSessionQuery(activeSessionId.value)
@@ -139,18 +149,23 @@ const handleCopyRun = async () => {
 
 <template>
   <ChatLayout>
+    <template #header-center>
+      <ChatToolbar
+        v-model:agent-key="selectedAgentKey"
+        :active-run="activeRun"
+        :step-count="steps.length"
+        :audit-open="auditOpen"
+        :agent-locked="agentLocked"
+        @open-audit="auditOpen = true"
+      />
+    </template>
+
     <div class="flex min-h-0 flex-1 flex-col">
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div class="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 px-3 py-3 sm:px-4">
-          <ChatToolbar
-            v-model:agent-key="selectedAgentKey"
-            :active-run="activeRun"
-            :step-count="steps.length"
-            :audit-open="auditOpen"
-            :agent-locked="agentLocked"
-            @open-audit="auditOpen = true"
-          />
-
+        <div
+          v-if="sessionsError || error || isLoadingRun"
+          class="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 px-3 py-2 sm:px-4"
+        >
           <p
             v-if="sessionsError"
             class="shrink-0 text-sm text-destructive"
@@ -175,7 +190,7 @@ const handleCopyRun = async () => {
         </div>
 
         <div class="min-h-0 flex-1 overflow-y-auto">
-          <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-3 pb-4 sm:px-4">
+          <div class="mx-auto flex w-full max-w-3xl flex-col gap-6 px-3 pb-4 pt-3 sm:px-4">
             <div
               v-if="messages.length === 0 && !isLoadingRun"
               class="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-center"
@@ -199,9 +214,15 @@ const handleCopyRun = async () => {
                   : 'w-full'"
               >
                 <div
-                  v-if="msg.attachments?.length"
+                  v-if="msg.contextHints?.length || msg.attachments?.length"
                   class="mb-2 flex flex-wrap gap-2"
                 >
+                  <ChatContextChip
+                    v-for="hint in msg.contextHints ?? []"
+                    :key="hint.id"
+                    :hint="hint"
+                    :removable="false"
+                  />
                   <template
                     v-for="att in msg.attachments"
                     :key="att.id"
@@ -250,11 +271,14 @@ const handleCopyRun = async () => {
         :is-streaming="isStreaming"
         :can-submit="hasValidModel && !isLoading"
         :attachments="attachments"
+        :context-hints="contextHints"
         :is-uploading="isUploading"
         :accept="ATTACHMENT_ACCEPT"
         @submit="handleSubmit"
         @pick="handlePick"
         @remove-attachment="removeAttachment"
+        @add-context="addContextHint"
+        @remove-context="removeContextHint"
       />
 
       <AgentAuditSheet

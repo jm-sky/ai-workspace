@@ -61,7 +61,7 @@ watch(selectedKey, (key) => {
     >
       <SelectTrigger
         size="sm"
-        class="h-8 w-[11rem] max-w-full cursor-pointer sm:w-[13rem]"
+        class="h-8 w-[9.5rem] max-w-full cursor-pointer sm:w-[13rem]"
         :aria-label="t('workspace.agent.selectLabel')"
       >
         <SelectValue :placeholder="t('workspace.agent.selectPlaceholder')" />

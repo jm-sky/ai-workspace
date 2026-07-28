@@ -129,9 +129,11 @@ Characteristics:
 - floating panel style
 - possible glass/blur effect
 - high-quality spacing and interaction
+- **plus (`+`) menu** (ChatGPT-like): primary entry for attachments and soft context sources — Add photos/files, connected integrations (GitHub, Gmail), Knowledge hint, link to more integrations. Not a full apps marketplace in v1; Atlassian/Jira stay out of scope while OAuth is deferred.
 
 Avoid:
 - excessive decoration
+- paperclip-only shortcut that hides source options
 
 ## Workspace
 

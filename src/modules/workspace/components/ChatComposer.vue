@@ -5,9 +5,14 @@ import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import ChatAttachmentChip from '@/modules/workspace/components/ChatAttachmentChip.vue'
-import ChatAttachmentPicker from '@/modules/workspace/components/ChatAttachmentPicker.vue'
 import ChatAttachmentPreview from '@/modules/workspace/components/ChatAttachmentPreview.vue'
+import ChatComposerPlusMenu from '@/modules/workspace/components/ChatComposerPlusMenu.vue'
+import ChatContextChip from '@/modules/workspace/components/ChatContextChip.vue'
 import type { IChatAttachment } from '@/modules/workspace/types/attachments'
+import type {
+  ComposerContextProvider,
+  IComposerContextHint,
+} from '@/modules/workspace/types/contextHints'
 
 const input = defineModel<string>({ required: true })
 
@@ -16,6 +21,7 @@ const {
   isStreaming,
   canSubmit = true,
   attachments = [],
+  contextHints = [],
   isUploading = false,
   accept = 'image/jpeg,image/png,image/webp,image/gif',
 } = defineProps<{
@@ -23,6 +29,7 @@ const {
   isStreaming?: boolean
   canSubmit?: boolean
   attachments?: IChatAttachment[]
+  contextHints?: IComposerContextHint[]
   isUploading?: boolean
   accept?: string
 }>()
@@ -31,6 +38,8 @@ const emit = defineEmits<{
   submit: []
   pick: [files: FileList]
   removeAttachment: [id: string]
+  addContext: [provider: ComposerContextProvider]
+  removeContext: [id: string]
 }>()
 
 const { t } = useI18n()
@@ -44,6 +53,10 @@ const canSend = computed(
     && !isLoading
     && !isUploading
     && (input.value.trim().length > 0 || attachments.length > 0),
+)
+
+const hasChips = computed(
+  () => attachments.length > 0 || contextHints.length > 0,
 )
 
 const handleSubmit = () => {
@@ -92,9 +105,15 @@ const onDrop = (event: DragEvent) => {
       @drop.prevent="onDrop"
     >
       <div
-        v-if="attachments.length"
+        v-if="hasChips"
         class="flex flex-wrap gap-2 px-1 pt-1"
       >
+        <ChatContextChip
+          v-for="hint in contextHints"
+          :key="hint.id"
+          :hint="hint"
+          @remove="emit('removeContext', hint.id)"
+        />
         <ChatAttachmentChip
           v-for="item in attachments"
           :key="item.id"
@@ -104,18 +123,19 @@ const onDrop = (event: DragEvent) => {
         />
       </div>
       <div class="flex items-end gap-2">
-        <ChatAttachmentPicker
+        <ChatComposerPlusMenu
           :accept="accept"
           :disabled="isLoading || isUploading"
           @pick="emit('pick', $event)"
+          @add-context="emit('addContext', $event)"
         />
         <Textarea
           id="chat-composer-input"
           v-model="input"
           :placeholder="t('workspace.chat.placeholder')"
           :disabled="isLoading"
-          rows="2"
-          class="rounded-full min-w-0 flex-1 resize-none border-0 bg-transparent shadow-none focus-visible:ring-0 dark:bg-transparent"
+          rows="1"
+          class="min-h-9 rounded-full min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"
           :aria-label="t('workspace.chat.placeholder')"
           @keydown="handleKeydown"
           @paste="onPaste"

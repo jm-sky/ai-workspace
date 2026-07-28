@@ -114,7 +114,7 @@ const handleLogout = () => {
       <Avatar
         role="button"
         :aria-label="t('user.menu.title', 'User menu')"
-        :class="cn('cursor-pointer hover:brightness-95 transition-all duration-300', !isAuthenticated && 'ring-2 ring-muted-foreground/30', isAuthenticated && canAccessAdminPanel && 'ring-2 ring-primary ring-offset-2 ring-offset-background')"
+        :class="cn('ml-2 cursor-pointer hover:brightness-95 transition-all duration-300', !isAuthenticated && 'ring-2 ring-muted-foreground/30', isAuthenticated && canAccessAdminPanel && 'ring-2 ring-primary ring-offset-2 ring-offset-background')"
       >
         <AvatarImage
           :src="avatarUrl ?? ''"

@@ -20,6 +20,6 @@ const selectedModelId = computed({
     :disabled="isLoading || isUpdating"
     :show-browse-all="true"
     trigger-size="sm"
-    class="w-full max-w-xs cursor-pointer"
+    class="w-full cursor-pointer"
   />
 </template>

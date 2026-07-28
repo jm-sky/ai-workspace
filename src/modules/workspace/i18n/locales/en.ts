@@ -49,6 +49,22 @@ export const workspaceEn = {
         deleteFailed: 'Failed to remove attachment',
       },
     },
+    composer: {
+      plus: {
+        open: 'Add attachment or source',
+        addFiles: 'Add photos and files',
+        connectGithub: 'Connect GitHub',
+        connectGmail: 'Connect Gmail',
+        more: 'More integrations…',
+        removeHint: 'Remove context hint',
+        providerDisabled: 'This integration is disabled — opening settings',
+        providers: {
+          github: 'GitHub',
+          gmail: 'Gmail',
+          knowledge: 'Knowledge',
+        },
+      },
+    },
     memory: {
       title: 'Memory',
       subtitle: 'Semantic memories used by the agent across sessions',

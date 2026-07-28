@@ -14,7 +14,7 @@ defineProps<{
 
 <template>
   <SidebarProvider>
-    <AppSidebar class="mt-(--header-height) shadow-[0_0_.6rem_#0002]" />
+    <AppSidebar class="top-(--header-height) h-[calc(100svh-var(--header-height))] shadow-[0_0_.6rem_#0002]" />
     <SidebarInset class="min-w-0 pt-14 bg-surface">
       <div class="flex min-h-screen min-w-0 flex-col bg-muted bg-radial from-card to-muted w-full max-w-full overflow-x-hidden">
         <!-- Top Bar -->

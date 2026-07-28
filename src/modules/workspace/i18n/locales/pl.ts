@@ -49,6 +49,22 @@ export const workspacePl = {
         deleteFailed: 'Nie udało się usunąć załącznika',
       },
     },
+    composer: {
+      plus: {
+        open: 'Dodaj załącznik lub źródło',
+        addFiles: 'Dodaj zdjęcia i pliki',
+        connectGithub: 'Połącz GitHub',
+        connectGmail: 'Połącz Gmail',
+        more: 'Więcej integracji…',
+        removeHint: 'Usuń wskazówkę kontekstu',
+        providerDisabled: 'Ta integracja nie jest włączona — otwieram ustawienia',
+        providers: {
+          github: 'GitHub',
+          gmail: 'Gmail',
+          knowledge: 'Wiedza',
+        },
+      },
+    },
     memory: {
       title: 'Pamięć',
       subtitle: 'Wspomnienia semantyczne używane przez agenta między sesjami',
