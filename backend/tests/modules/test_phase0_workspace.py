@@ -34,6 +34,7 @@ def _patch_workspace_defaults(
     max_tokens: int | None = 32000,
     rag_enabled: bool = False,
     tools_enabled: bool = True,
+    web_search_enabled: bool = True,
 ):
     prefix = "app.modules.workspace_config.resolver.settings.workspace"
     monkeypatch.setattr(f"{prefix}.default_allowed_models", allowed_models)
@@ -41,6 +42,7 @@ def _patch_workspace_defaults(
     monkeypatch.setattr(f"{prefix}.default_max_tokens", max_tokens)
     monkeypatch.setattr(f"{prefix}.default_rag_enabled", rag_enabled)
     monkeypatch.setattr(f"{prefix}.default_tools_enabled", tools_enabled)
+    monkeypatch.setattr(f"{prefix}.default_web_search_enabled", web_search_enabled)
 
 
 class TestWorkspaceConfigResolver:
@@ -338,3 +340,78 @@ class TestIntegrationTokenService:
 
         assert result == "personal-token"
         repo.find_team_scoped.assert_not_called()
+
+
+class TestWebSearchCascade:
+    """web_search_enabled narrows like rag_enabled: any level can only turn it off."""
+
+    @pytest.mark.asyncio
+    async def test_on_by_default_when_no_scope_overrides(self, monkeypatch):
+        _patch_workspace_defaults(monkeypatch, allowed_models=[])
+        repo = AsyncMock()
+        repo.get_entries_for_scope.side_effect = [[], [], [], []]
+
+        result = await WorkspaceConfigResolver(repo).resolve(
+            user_id="user-1",
+            tenant_id="tenant-1",
+            team_id="team-1",
+        )
+
+        assert result.webSearchEnabled is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("scope_index", [1, 2, 3], ids=["tenant", "team", "user"])
+    async def test_any_scope_can_disable_it(self, monkeypatch, scope_index):
+        _patch_workspace_defaults(monkeypatch, allowed_models=[])
+        entries: list[list] = [[], [], [], []]
+        entries[scope_index] = [_config_entry(ConfigKey.WEB_SEARCH_ENABLED.value, False)]
+
+        repo = AsyncMock()
+        repo.get_entries_for_scope.side_effect = entries
+
+        result = await WorkspaceConfigResolver(repo).resolve(
+            user_id="user-1",
+            tenant_id="tenant-1",
+            team_id="team-1",
+        )
+
+        assert result.webSearchEnabled is False
+
+    @pytest.mark.asyncio
+    async def test_a_lower_scope_cannot_re_enable_it(self, monkeypatch):
+        """AND-narrowing: a user cannot opt back into what the tenant switched off."""
+        _patch_workspace_defaults(monkeypatch, allowed_models=[])
+        repo = AsyncMock()
+        repo.get_entries_for_scope.side_effect = [
+            [],
+            [_config_entry(ConfigKey.WEB_SEARCH_ENABLED.value, False)],
+            [],
+            [_config_entry(ConfigKey.WEB_SEARCH_ENABLED.value, True)],
+        ]
+
+        result = await WorkspaceConfigResolver(repo).resolve(
+            user_id="user-1",
+            tenant_id="tenant-1",
+            team_id="team-1",
+        )
+
+        assert result.webSearchEnabled is False
+
+    @pytest.mark.asyncio
+    async def test_app_level_off_wins_over_everything(self, monkeypatch):
+        _patch_workspace_defaults(monkeypatch, allowed_models=[], web_search_enabled=False)
+        repo = AsyncMock()
+        repo.get_entries_for_scope.side_effect = [
+            [],
+            [_config_entry(ConfigKey.WEB_SEARCH_ENABLED.value, True)],
+            [],
+            [],
+        ]
+
+        result = await WorkspaceConfigResolver(repo).resolve(
+            user_id="user-1",
+            tenant_id="tenant-1",
+            team_id="team-1",
+        )
+
+        assert result.webSearchEnabled is False

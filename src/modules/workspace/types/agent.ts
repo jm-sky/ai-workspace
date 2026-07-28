@@ -71,7 +71,7 @@ export interface IAgentChatRequest {
   attachmentIds?: string[]
 }
 
-export type RichBlockType = 'card' | 'table' | 'markdown' | 'chart'
+export type RichBlockType = 'card' | 'table' | 'markdown' | 'chart' | 'sources'
 
 export interface IRichBlock {
   type: RichBlockType
@@ -94,6 +94,18 @@ export interface IChartBlockData {
   xLabel?: string | null
   yLabel?: string | null
   series: IChartSeries[]
+}
+
+export interface ISourceItem {
+  index: number
+  url: string
+  title?: string | null
+  snippet?: string | null
+  publishedAt?: string | null
+}
+
+export interface ISourcesBlockData {
+  items: ISourceItem[]
 }
 
 export interface IAgentRunStep {

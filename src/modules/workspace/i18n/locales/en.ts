@@ -62,7 +62,13 @@ export const workspaceEn = {
           github: 'GitHub',
           gmail: 'Gmail',
           knowledge: 'Knowledge',
+          web: 'Web search',
         },
+      },
+    },
+    blocks: {
+      sources: {
+        title: 'Sources',
       },
     },
     memory: {

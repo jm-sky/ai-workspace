@@ -57,6 +57,7 @@ class WorkspaceConfigResolver:
             maxTokens=ws.default_max_tokens,
             ragEnabled=ws.default_rag_enabled,
             toolsEnabled=ws.default_tools_enabled,
+            webSearchEnabled=ws.default_web_search_enabled,
         )
 
     async def resolve(
@@ -110,10 +111,16 @@ class WorkspaceConfigResolver:
         tools_enabled = _and_bool(tools_enabled, team_map.get(ConfigKey.TOOLS_ENABLED.value))
         tools_enabled = _and_bool(tools_enabled, user_map.get(ConfigKey.TOOLS_ENABLED.value))
 
+        web_search_enabled = base.webSearchEnabled
+        web_search_enabled = _and_bool(web_search_enabled, tenant_map.get(ConfigKey.WEB_SEARCH_ENABLED.value))
+        web_search_enabled = _and_bool(web_search_enabled, team_map.get(ConfigKey.WEB_SEARCH_ENABLED.value))
+        web_search_enabled = _and_bool(web_search_enabled, user_map.get(ConfigKey.WEB_SEARCH_ENABLED.value))
+
         return EffectiveWorkspaceConfig(
             allowedModels=allowed or [],
             defaultModel=default_model,
             maxTokens=max_tokens,
             ragEnabled=rag_enabled,
             toolsEnabled=tools_enabled,
+            webSearchEnabled=web_search_enabled,
         )

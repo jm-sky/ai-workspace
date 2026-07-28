@@ -1,4 +1,4 @@
-export type ComposerContextProvider = 'github' | 'gmail' | 'knowledge'
+export type ComposerContextProvider = 'github' | 'gmail' | 'knowledge' | 'web'
 
 export interface IComposerContextHint {
   id: string
@@ -16,6 +16,8 @@ export function buildContextDirectives(hints: IComposerContextHint[]): string {
         return '- Prefer Gmail tools for this request when relevant.'
       case 'knowledge':
         return '- Prefer Knowledge / RAG (rag_search) for this request when relevant.'
+      case 'web':
+        return '- Search the web (web_search, then web_fetch) for this request, and cite the sources you use.'
       default:
         return ''
     }

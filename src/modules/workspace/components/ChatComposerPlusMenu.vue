@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useQuery } from '@tanstack/vue-query'
-import { BookOpen, Github, Mail, Paperclip, Plus, Settings2 } from 'lucide-vue-next'
+import { BookOpen, Github, Globe, Mail, Paperclip, Plus, Settings2 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -182,6 +182,11 @@ const goIntegrations = async () => {
         <DropdownMenuItem @click="useProvider('knowledge')">
           <BookOpen class="size-4" />
           <span>{{ t('workspace.composer.plus.providers.knowledge') }}</span>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem @click="useProvider('web')">
+          <Globe class="size-4" />
+          <span>{{ t('workspace.composer.plus.providers.web') }}</span>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

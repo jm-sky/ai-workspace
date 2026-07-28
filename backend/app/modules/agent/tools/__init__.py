@@ -14,6 +14,7 @@ from app.modules.agent.tools.jira import JiraGetIssueTool
 from app.modules.agent.tools.memory import MemorySaveTool, MemorySearchTool, MemoryUpdateTool
 from app.modules.agent.tools.rag import RagSearchTool
 from app.modules.agent.tools.tool_search import ToolSearchTool
+from app.modules.agent.tools.web import WebFetchTool, WebSearchTool
 from app.modules.agent.tools.wiki import WikiIngestTool, WikiLintTool, WikiQueryTool
 from app.modules.integrations.service import IntegrationTokenService
 from app.modules.tenants.service import TenantContext
@@ -27,6 +28,9 @@ AGENT_TOOL_PROFILES: dict[str, list[str]] = {
 CORE_TOOL_NAMES: frozenset[str] = frozenset(
     {"tool_search", "memory_search", "memory_save", "memory_update"}
 )
+
+# Kept active as a pair whenever the `web` bucket runs in local mode.
+WEB_TOOL_NAMES: frozenset[str] = frozenset({"web_search", "web_fetch"})
 
 
 def _resolve_tool_profile(
@@ -50,6 +54,7 @@ def build_tool_registry(
     agent_key: str = "github-workspace",
     session_id: str | None = None,
     rag_enabled: bool = False,
+    web_search_enabled: bool = False,
     tool_profile: Sequence[str] | None = None,
 ) -> AgentToolRegistry:
     """Create in-process MCP-compatible tools with per-user token injection.
@@ -106,6 +111,16 @@ def build_tool_registry(
             WikiQueryTool(tenant_ctx=tenant_ctx, db=db),
             WikiLintTool(tenant_ctx=tenant_ctx, db=db),
         ])
+    # In server mode OpenRouter runs the web tools itself, so registering our own
+    # would give the model two competing ways to search.
+    local_web = "web" in profile and settings.ai.web_search_mode == "local"
+    if local_web:
+        tools.extend(
+            [
+                WebSearchTool(web_search_enabled=web_search_enabled),
+                WebFetchTool(web_search_enabled=web_search_enabled),
+            ]
+        )
 
     registry = AgentToolRegistry(tools=tools)
     profile_count = len(tools)
@@ -120,7 +135,10 @@ def build_tool_registry(
                 top_k=settings.ai.tool_search_top_k,
             )
         )
-        core_present = [name for name in CORE_TOOL_NAMES if name in registry]
+        # web_search and web_fetch stay loaded together: deferring either one
+        # breaks the search → read chain behind an extra tool_search round-trip.
+        core_names = CORE_TOOL_NAMES | WEB_TOOL_NAMES if local_web else CORE_TOOL_NAMES
+        core_present = [name for name in core_names if name in registry]
         registry.set_active(core_present)
 
     return registry

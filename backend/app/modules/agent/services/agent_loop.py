@@ -5,6 +5,7 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any, cast
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
@@ -16,7 +17,7 @@ from app.modules.agent.exceptions import (
     AgentNotConfiguredError,
     AgentToolError,
 )
-from app.modules.agent.schemas import ChartBlockData
+from app.modules.agent.schemas import ChartBlockData, SourcesBlockData
 from app.modules.agent.tools.base import AgentToolRegistry
 from app.modules.ai.utils.models_config import calculate_cost
 
@@ -56,6 +57,7 @@ class AgentLoopService:
         api_key: str | None = None,
         max_steps: int | None = None,
         agent_key: str = "github-workspace",
+        server_web_tools: bool = False,
     ):
         key = api_key or settings.ai.openrouter_api_key
         if not key:
@@ -65,6 +67,7 @@ class AgentLoopService:
         self.system_prompt = system_prompt
         self.tool_registry = tool_registry
         self.agent_key = agent_key
+        self.server_web_tools = server_web_tools
         self.max_steps = max_steps or settings.ai.agent_max_steps
         self.client = AsyncOpenAI(
             api_key=key,
@@ -125,6 +128,8 @@ class AgentLoopService:
         for iteration in range(self.max_steps):
             # Refresh each turn so tool_search activations appear in schemas.
             tools = self.tool_registry.openai_tools()
+            if self.server_web_tools:
+                tools = [*tools, *_openrouter_web_tools()]
             create_kwargs: dict[str, Any] = {
                 "model": self.model,
                 "messages": cast(list[ChatCompletionMessageParam], messages),
@@ -164,6 +169,36 @@ class AgentLoopService:
                 },
             )
             step_index += 1
+
+            # Server-side web tools run inside OpenRouter, so the loop never sees a
+            # tool_call for them. Their citations come back as message annotations —
+            # replay them as one synthetic step so the trace, the audit view and the
+            # sources block all still work.
+            server_sources = _harvest_url_citations(assistant_payload)
+            if server_sources:
+                steps_trace.append(
+                    {
+                        "stepIndex": step_index,
+                        "stepType": "tool_result",
+                        "name": "web_search",
+                        "inputData": {"tool": "web_search", "serverSide": True},
+                        "outputData": {
+                            "serverSide": True,
+                            "total": len(server_sources),
+                            "sources": server_sources,
+                        },
+                    }
+                )
+                yield AgentLoopEvent(
+                    event="step",
+                    data={
+                        "type": "tool_result",
+                        "stepIndex": step_index,
+                        "tool": "web_search",
+                        "result": {"serverSide": True, "total": len(server_sources)},
+                    },
+                )
+                step_index += 1
 
             tool_calls = assistant_message.tool_calls or []
             if not tool_calls:
@@ -245,6 +280,52 @@ class AgentLoopService:
         raise AgentMaxStepsExceededError(f"Agent exceeded maximum steps ({self.max_steps})")
 
 
+def _openrouter_web_tools() -> list[dict[str, Any]]:
+    """OpenRouter server tools — executed on their side, no client implementation.
+
+    Costs are billed per web result, so `max_results` is capped by config rather
+    than left to the model.
+    """
+    return [
+        {
+            "type": "openrouter:web_search",
+            "parameters": {"max_results": settings.ai.web_search_max_results},
+        },
+        {"type": "openrouter:web_fetch"},
+    ]
+
+
+def _harvest_url_citations(assistant_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract `url_citation` annotations from an assistant message.
+
+    Read from the dumped payload rather than a typed attribute: annotations are a
+    provider extension and the SDK's model may not declare the field.
+    """
+    annotations = assistant_payload.get("annotations")
+    if not isinstance(annotations, list):
+        return []
+
+    sources: list[dict[str, Any]] = []
+    for annotation in annotations:
+        if not isinstance(annotation, dict) or annotation.get("type") != "url_citation":
+            continue
+        citation = annotation.get("url_citation")
+        if not isinstance(citation, dict):
+            continue
+        url = str(citation.get("url") or "").strip()
+        if not url:
+            continue
+        sources.append(
+            {
+                "index": len(sources) + 1,
+                "url": url,
+                "title": citation.get("title"),
+                "snippet": (str(citation.get("content"))[:600] if citation.get("content") else None),
+            }
+        )
+    return sources
+
+
 def _build_blocks_from_trace(
     steps_trace: list[dict[str, Any]],
     markdown: str,
@@ -261,8 +342,74 @@ def _build_blocks_from_trace(
         blocks.extend(_github_workspace_blocks(steps_trace))
 
     blocks.extend(_chart_blocks(steps_trace))
+    blocks.extend(_sources_blocks(steps_trace))
 
     return blocks
+
+
+def _normalize_source_url(url: str) -> str:
+    """Key used for de-duplication: no tracking params, no trailing slash."""
+    try:
+        split = urlsplit(url)
+    except ValueError:
+        return url.strip()
+
+    query = urlencode([(key, value) for key, value in parse_qsl(split.query, keep_blank_values=True) if not key.lower().startswith(("utm_", "fbclid", "gclid"))])
+    path = split.path.rstrip("/") or "/"
+    return urlunsplit((split.scheme.lower(), split.netloc.lower(), path, query, ""))
+
+
+def _sources_blocks(steps_trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collect cited web sources into a single `sources` block.
+
+    Convention-based, mirroring `_chart_blocks` (plan 013 dec. #5): any tool, on
+    any agent, opts in by returning `{"sources": [{"url", "title", ...}]}`.
+    Sources are de-duplicated by normalized URL, keeping first-seen order, and
+    renumbered 1..n so the block matches the `[n]` markers in the answer.
+    """
+    items: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for step in steps_trace:
+        if step.get("stepType") != "tool_result":
+            continue
+        output = step.get("outputData") or {}
+        if "error" in output:
+            continue
+        sources = output.get("sources")
+        if not isinstance(sources, list):
+            continue
+
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            url = str(source.get("url") or "").strip()
+            if not url:
+                continue
+            key = _normalize_source_url(url)
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(
+                {
+                    "index": len(items) + 1,
+                    "url": url,
+                    "title": source.get("title"),
+                    "snippet": source.get("snippet"),
+                    "publishedAt": source.get("publishedAt"),
+                }
+            )
+
+    if not items:
+        return []
+
+    try:
+        data = SourcesBlockData.model_validate({"items": items})
+    except ValidationError:
+        logger.warning("Ignoring malformed sources payload")
+        return []
+
+    return [{"type": "sources", "title": None, "data": data.model_dump()}]
 
 
 def _chart_blocks(steps_trace: list[dict[str, Any]]) -> list[dict[str, Any]]:

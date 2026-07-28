@@ -5,6 +5,7 @@ import {
   Check,
   Github,
   Gitlab,
+  Globe,
   Loader2,
   Mail,
   Ticket,
@@ -36,6 +37,7 @@ const PROVIDER_ICON: Record<string, Component> = {
   gmail: Mail,
   memory: Brain,
   rag: BookOpen,
+  web: Globe,
 }
 
 const providerOf = (tool: string): string => {

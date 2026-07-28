@@ -2,6 +2,7 @@
 import { ExternalLink } from 'lucide-vue-next'
 import AgentChartBlock from '@/modules/workspace/components/AgentChartBlock.vue'
 import AgentMarkdown from '@/modules/workspace/components/AgentMarkdown.vue'
+import AgentSourcesBlock from '@/modules/workspace/components/AgentSourcesBlock.vue'
 import type { IChartBlockData, IRichBlock } from '@/modules/workspace/types/agent'
 
 const { blocks } = defineProps<{
@@ -12,6 +13,7 @@ const isTableBlock = (block: IRichBlock): boolean => block.type === 'table'
 const isCardBlock = (block: IRichBlock): boolean => block.type === 'card'
 const isMarkdownBlock = (block: IRichBlock): boolean => block.type === 'markdown'
 const isChartBlock = (block: IRichBlock): boolean => block.type === 'chart'
+const isSourcesBlock = (block: IRichBlock): boolean => block.type === 'sources'
 const chartData = (block: IRichBlock): IChartBlockData => block.data as unknown as IChartBlockData
 
 const tableRows = (block: IRichBlock): Record<string, unknown>[] => {
@@ -150,6 +152,12 @@ const pillClass = (value: unknown): string => {
         v-else-if="isChartBlock(block)"
         :title="block.title"
         :data="chartData(block)"
+      />
+
+      <AgentSourcesBlock
+        v-else-if="isSourcesBlock(block)"
+        :title="block.title"
+        :data="block.data"
       />
     </template>
   </div>
