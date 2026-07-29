@@ -190,6 +190,13 @@ export const workspacePl = {
         howItWorksBody: 'Wiki to Twój Second Brain. Wklejaj treści przez Ingest — AI automatycznie tworzy strony, wyciąga encje i podsumowania. Strony mogą się linkować składnią [[slug]]. Graf pokazuje powiązania. Agent ma dostęp do wiki przy każdym czacie.',
         ingestDialogHint: 'AI przetworzy tekst i stworzy do kilku powiązanych stron w różnych folderach.',
         newPageLinkHint: 'Możesz linkować do innych stron składnią [[slug-strony]].',
+        linkPicker: {
+          title: 'Wstaw link do strony',
+          search: 'Szukaj strony…',
+          insert: 'Wstaw link',
+          empty: 'Brak pasujących stron',
+          hint: 'Kliknij stronę, aby wstawić [[slug]] w miejscu kursora',
+        },
         folders: {
           raw: 'Surowa treść zaraz po Ingest, przed przetworzeniem przez AI',
           inbox: 'Strony utworzone ręcznie lub oczekujące na klasyfikację',

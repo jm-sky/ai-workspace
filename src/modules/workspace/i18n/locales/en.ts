@@ -190,6 +190,13 @@ export const workspaceEn = {
         howItWorksBody: 'Wiki is your Second Brain. Paste content via Ingest — AI automatically creates pages, extracts entities and summaries. Pages can link to each other using [[slug]] syntax. The Graph shows connections. The agent has access to the wiki in every chat.',
         ingestDialogHint: 'AI will process the text and create up to several related pages across different folders.',
         newPageLinkHint: 'You can link to other pages using [[page-slug]] syntax.',
+        linkPicker: {
+          title: 'Insert link to page',
+          search: 'Search pages…',
+          insert: 'Insert link',
+          empty: 'No matching pages',
+          hint: 'Click a page to insert [[slug]] at cursor position',
+        },
         folders: {
           raw: 'Raw content right after Ingest, before AI processing',
           inbox: 'Pages created manually or awaiting classification',

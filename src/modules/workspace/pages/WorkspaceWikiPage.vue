@@ -11,7 +11,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-vue-next'
-import { onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 import { Badge } from '@/components/ui/badge'
@@ -53,6 +53,7 @@ const FOLDERS: { key: WikiFolder; icon: typeof FolderOpen }[] = [
 ]
 
 const {
+  pages,
   total,
   isLoading,
   isSaving,
@@ -79,7 +80,36 @@ const ingestTitle = ref('')
 const ingestContent = ref('')
 const showIngestDialog = ref(false)
 const showNewPageDialog = ref(false)
+const showLinkPicker = ref(false)
+const linkSearch = ref('')
+const bodyTextareaRef = ref<{ $el: HTMLTextAreaElement } | null>(null)
 const confirmDeprecateId = ref<string | null>(null)
+
+const filteredForPicker = computed(() => {
+  const q = linkSearch.value.trim().toLowerCase()
+  if (!q) return pages.value
+  return pages.value.filter(
+    (p) => p.title.toLowerCase().includes(q) || p.slug.toLowerCase().includes(q),
+  )
+})
+
+const insertLink = (slug: string) => {
+  const el = bodyTextareaRef.value?.$el
+  const insert = `[[${slug}]]`
+  if (el) {
+    const start = el.selectionStart ?? newBody.value.length
+    const end = el.selectionEnd ?? start
+    newBody.value = newBody.value.slice(0, start) + insert + newBody.value.slice(end)
+    void nextTick(() => {
+      el.focus()
+      el.setSelectionRange(start + insert.length, start + insert.length)
+    })
+  } else {
+    newBody.value += insert
+  }
+  showLinkPicker.value = false
+  linkSearch.value = ''
+}
 
 onMounted(() => {
   void loadPages()
@@ -538,8 +568,21 @@ const svgRef = ref<SVGSVGElement | null>(null)
             />
           </div>
           <div>
-            <Label>{{ t('workspace.wiki.pageBody') }}</Label>
+            <div class="mb-1 flex items-center justify-between">
+              <Label>{{ t('workspace.wiki.pageBody') }}</Label>
+              <Button
+                size="sm"
+                variant="ghost"
+                class="h-6 gap-1 px-2 text-xs"
+                type="button"
+                @click="showLinkPicker = true"
+              >
+                <Link2 class="size-3" />
+                {{ t('workspace.wiki.help.linkPicker.insert') }}
+              </Button>
+            </div>
             <Textarea
+              ref="bodyTextareaRef"
               v-model="newBody"
               :placeholder="t('workspace.wiki.bodyPlaceholder')"
               rows="6"
@@ -625,6 +668,44 @@ const svgRef = ref<SVGSVGElement | null>(null)
           >
             {{ t('workspace.wiki.deprecateAction') }}
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    <!-- Link Picker dialog -->
+    <Dialog
+      :open="showLinkPicker"
+      @update:open="(open) => { if (!open) { showLinkPicker = false; linkSearch = '' } }"
+    >
+      <DialogContent class="max-w-md border-hairline bg-surface-raised">
+        <DialogHeader>
+          <DialogTitle>{{ t('workspace.wiki.help.linkPicker.title') }}</DialogTitle>
+        </DialogHeader>
+        <p class="text-xs text-muted-foreground">
+          {{ t('workspace.wiki.help.linkPicker.hint') }}
+        </p>
+        <Input
+          v-model="linkSearch"
+          :placeholder="t('workspace.wiki.help.linkPicker.search')"
+          autofocus
+        />
+        <div class="max-h-64 overflow-y-auto rounded-lg border border-hairline">
+          <p
+            v-if="filteredForPicker.length === 0"
+            class="p-3 text-sm text-muted-foreground"
+          >
+            {{ t('workspace.wiki.help.linkPicker.empty') }}
+          </p>
+          <ul v-else class="divide-y divide-hairline">
+            <li
+              v-for="page in filteredForPicker"
+              :key="page.id"
+              class="flex cursor-pointer flex-col gap-0.5 px-3 py-2 transition-colors hover:bg-muted/50"
+              @click="insertLink(page.slug)"
+            >
+              <span class="text-sm font-medium">{{ page.title }}</span>
+              <span class="font-mono text-xs text-muted-foreground">{{ page.slug }}</span>
+            </li>
+          </ul>
         </div>
       </DialogContent>
     </Dialog>
