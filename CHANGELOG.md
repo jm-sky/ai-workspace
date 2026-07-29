@@ -7,17 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [2.50.0] - 2026-07-29
+
 ### Added
-- **Memory**: `MemoryBackend` Protocol facade — `PgVectorMemoryBackend` extracted from `MemoryService`, `MEMORY_BACKEND` config flag (`pgvector`|`graphiti`), unknown values fail at settings load (plan 011, stage 1)
-- **Memory**: Graphiti spike scaffolding — `GraphitiMemoryBackend` (create+search), `docker-compose.graphiti.yml` (FalkorDB v4.20.1:6383), spike runner with 2×2×10 dialogue fixtures and 6 gate metrics (plan 011, stage 2)
-- **Wiki (Second Brain)**: new `wiki` module — `wiki_pages` + `wiki_links` tables (migration 066), folder-based CRUD (raw/inbox/entities/concepts/summaries/meta), `[[wikilinks]]` parser with full edge rebuild, librarian ingest (Raw → Summary → ripple Entities/Concepts, max 15 pages), `wiki_query` (RAG search filtered to `source_type=wiki`), `wiki_lint` (dangling links, orphans), seed meta/index+meta/log, force-directed SVG graph view, and full REST API under `/wiki` prefix. Agent tools: `wiki_ingest`, `wiki_query`, `wiki_lint` wired into `github-workspace` and `general` profiles. Frontend: `WorkspaceWikiPage.vue` with folder tree, page list/detail, graph tab, ingest/deprecate dialogs. (Faza 4.5, plan 010 — `done`)
-- **RAG**: `source_types` filter on `search_chunks` / `RagService.search` — allows scoping retrieval to specific document types (e.g. `wiki`) without breaking existing callers
-- **Agent**: chart rich block (`RichBlock.type="chart"`) alongside card/table/markdown — any tool can opt in via a `{"chart": {...}}` convention in its result; rendered with Unovis (Faza 3, plan 008 — now `done`)
-- **RAG**: embedding versioning (`embedding_model`/`embedding_version`), batched/retried/cached `EmbeddingService`, hybrid dense+lexical search (RRF), pluggable `Reranker` (Noop default, Hosted behind a flag), structure-aware markdown chunker, async ingest (`POST /rag/documents` → 202/pending, background embedding), attachment ingest (`POST /rag/documents/from-attachment`)
-- **Memory**: `memory_save` dedupes near-identical content (`AI_MEMORY_DEDUPE_THRESHOLD`), returning `duplicateOf` instead of writing a duplicate row
-- **CLI**: `python -m cli rag reembed [--batch] [--dry-run]` — resumable re-embed after a model change
-- **Workspace**: Knowledge page (`/workspace/knowledge`) — list/add/preview/delete RAG documents with live status
-- **Evals**: `backend/evals/rag/` — retrieval-quality harness (hit rate, MRR, context precision/recall) against a 34-question PL/EN golden set (Faza 4, plan 009 — infrastructure done, model choice pending a live eval run)
+- **Wiki (Second Brain)**: `wiki` module — `wiki_pages`/`wiki_links` (migration 066), folder CRUD, `[[wikilinks]]`, librarian ingest, `wiki_query`/`wiki_lint`, graph view, REST API + agent tools; UI with folder tree, sorting, bulk delete/search/purge, resizable detail panel, expand dialog, link picker, help tooltips (Faza 4.5, plan 010)
+- **Wiki**: entity-page merge on ingest and auto-wikilink of known slugs
+- **Memory**: `MemoryBackend` facade (`pgvector`|`graphiti`), Graphiti spike scaffolding + gate metrics (plan 011); `memory_save` near-duplicate dedupe
+- **RAG**: embedding versioning, hybrid dense+lexical (RRF), pluggable reranker, structure-aware chunker, async ingest, attachment ingest, `source_types` filter; Knowledge page; `cli rag reembed`; eval harness (Faza 4, plan 009)
+- **Agent**: chart rich block (Unovis); `web_search`/`web_fetch` with hybrid `server`/`local` mode and sources block (plan 013)
+- **Usage**: OpenRouter cost metering, period totals, workspace caps, web-search quotas, `GET /usage/summary`, billing limits + Usage card (plans 014/015)
+- **Auth**: refresh tokens in HttpOnly cookies with silent bootstrap refresh
+- **Security**: double-submit CSRF (`csrf_token` cookie + `X-CSRF-Token`)
+
+### Changed
+- Docker Compose: remove wrapper; stop overriding `DATABASE_URL`/`REDIS_URL` from host defaults
+- Chat/workspace layout spacing; model picker shows name only; mobile toolbar stays in chat window
+- Vite default port / `VITE_PORT` alignment
+
+### Fixed
+- Chat SSE `fetch` now sends CSRF header (production `/agent/chat/stream` 403)
+- Wiki incoming links show clickable source pages
+- CSRF middleware no longer double-issues `csrf_token` cookie
+- 2FA backup codes normalized before mark-used
+- Auth: tenant/team models imported for SQLAlchemy metadata; CLI change-password in interactive menu
+- Deploy: project-local pnpm store, GHA pull from `main`, sequential type-check/build, ownership wipe
+- Lint: backend ruff + frontend ESLint cleanups
+
+### Security
+- Cookie-authenticated mutations protected by CSRF
+- Refresh tokens no longer stored in localStorage/JSON bodies
 
 ---
 
