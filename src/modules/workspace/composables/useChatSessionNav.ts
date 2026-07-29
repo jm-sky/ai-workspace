@@ -3,11 +3,11 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
 import { useAgentSessions } from '@/modules/workspace/composables/useAgentSessions'
+import { WorkspaceRoutePath } from '@/modules/workspace/routes'
 
 export interface IChatSessionNavDeps {
   activeSessionId: Ref<string | null | undefined>
   loadSession: (sessionId: string) => Promise<void>
-  clearChat: () => void
 }
 
 export interface IChatSessionNavContext {
@@ -39,7 +39,7 @@ export function useChatSessionNav(deps: IChatSessionNavDeps): IChatSessionNavCon
 
   const setSessionQuery = async (sessionId?: string) => {
     await router.replace({
-      path: route.path,
+      path: WorkspaceRoutePath.Chat,
       query: sessionId ? { session: sessionId } : {},
     })
   }
@@ -53,12 +53,10 @@ export function useChatSessionNav(deps: IChatSessionNavDeps): IChatSessionNavCon
   }
 
   const selectSession = async (sessionId: string) => {
-    await loadSessionFromRoute(sessionId)
     await setSessionQuery(sessionId)
   }
 
   const newChat = async () => {
-    deps.clearChat()
     await setSessionQuery()
   }
 

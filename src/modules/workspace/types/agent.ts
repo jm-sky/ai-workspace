@@ -162,10 +162,17 @@ export interface IAgentRun extends IAgentRunSummary {
   steps: IAgentRunStep[]
 }
 
+export interface IAgentStreamError {
+  message: string
+  code?: string
+}
+
 export interface IAgentChatMessage {
   id: string
   role: 'user' | 'assistant' | 'system'
   content: string
+  kind?: 'error'
+  errorCode?: string
   runId?: string
   blocks?: IRichBlock[]
   attachments?: import('@/modules/workspace/types/attachments').IChatAttachment[]

@@ -25,6 +25,25 @@ export const workspacePl = {
       send: 'Wyślij',
       newChat: 'Nowy czat',
       showSessions: 'Sesje',
+      errors: {
+        genericTitle: 'Coś poszło nie tak',
+        genericDescription: 'Asystent nie mógł dokończyć żądania. Spróbuj ponownie lub sprawdź ustawienia workspace.',
+        dismiss: 'Zamknij',
+        emptyResponseTitle: 'Brak odpowiedzi',
+        emptyResponse: 'Asystent nie zwrócił wiadomości. Wyślij pytanie ponownie.',
+        streamFailedTitle: 'Błąd połączenia',
+        streamFailed: 'Strumień odpowiedzi został przerwany lub nie można go odczytać. Spróbuj ponownie.',
+        byok: {
+          title: 'Wymagany klucz API OpenRouter',
+          description: 'W planie darmowym potrzebujesz własnego klucza API OpenRouter, aby korzystać z czatu AI. Dodaj go w ustawieniach rozliczeń lub ulepsz plan.',
+          cta: 'Otwórz rozliczenia',
+        },
+        usageLimit: {
+          title: 'Osiągnięto limit użycia',
+          description: 'Wykorzystałeś miesięczny limit AI. Ulepsz plan lub poczekaj na reset limitu.',
+          cta: 'Zobacz plany',
+        },
+      },
     },
     agent: {
       selectLabel: 'Agent',

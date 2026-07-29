@@ -21,14 +21,9 @@ const loadSession = async (sessionId: string) => {
   })
 }
 
-const clearChat = () => {
-  void router.push({ path: WorkspaceRoutePath.Chat, query: {} })
-}
-
 useChatSessionNav({
   activeSessionId,
   loadSession,
-  clearChat,
 })
 </script>
 
