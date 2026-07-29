@@ -20,11 +20,13 @@ from app.modules.agent.exceptions import (
 from app.modules.agent.schemas import AgentChatRequest
 from app.modules.agent.services.agent_run_service import AgentRunService
 from app.modules.auth.dependencies import CurrentUser
+from app.modules.billing.exceptions import FreeTrierRequiresBYOKError
 from app.modules.integrations.repositories import (
     IntegrationTokenRepository,
     get_integration_token_repository,
 )
 from app.modules.integrations.service import IntegrationTokenService
+from app.modules.usage.exceptions import UsageLimitExceededError
 
 router = APIRouter(prefix="/chat", tags=["agent-chat"])
 
@@ -49,11 +51,6 @@ async def agent_chat_stream(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="AI features are disabled",
         )
-    if not settings.ai.openrouter_api_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="OPENROUTER_API_KEY is not configured",
-        )
 
     async def event_generator() -> AsyncIterator[str]:
         try:
@@ -69,6 +66,12 @@ async def agent_chat_stream(
                 yield f"event: {event.event}\ndata: {payload}\n\n"
         except (AgentNotConfiguredError, AgentToolsDisabledError, AgentVisionRequiredError) as exc:
             payload = json.dumps({"message": str(exc)})
+            yield f"event: error\ndata: {payload}\n\n"
+        except UsageLimitExceededError as exc:
+            payload = json.dumps({"message": str(exc), "code": exc.code})
+            yield f"event: error\ndata: {payload}\n\n"
+        except FreeTrierRequiresBYOKError as exc:
+            payload = json.dumps({"message": str(exc), "code": "byok_required"})
             yield f"event: error\ndata: {payload}\n\n"
         except AgentError as exc:
             payload = json.dumps({"message": str(exc)})

@@ -45,6 +45,12 @@ export const pl = {
       message: 'Masz dożywotni dostęp do funkcji Pro. Dziękujemy za bycie wczesnym wsparciem!',
     },
     planSuffix: 'Plan',
+    workspaceUsage: {
+      title: 'Zużycie AI w workspace',
+      description: 'Koszt OpenRouter (platforma) w bieżącym okresie rozliczeniowym',
+      used: 'Wliczone zużycie AI',
+      webSearch: 'Web search: {used} / {cap} w tym okresie',
+    },
     currentPeriodLabel: 'Obecny Okres:',
     subscriptionWillCancel: 'Subskrypcja zostanie anulowana w dniu',
     plans: {

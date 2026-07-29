@@ -101,3 +101,7 @@ class WikiLintIssue(BaseModel):
 class WikiLintResponse(BaseModel):
     issues: list[WikiLintIssue]
     fixesApplied: int = 0
+
+
+class WikiBulkDeleteResponse(BaseModel):
+    deleted: int

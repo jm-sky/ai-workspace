@@ -111,6 +111,18 @@ class SubscriptionLimitsResponse(BaseModel):
     requiresByok: bool
     itemsLimit: int = Field(..., description="Maximum number of items allowed")
     containersLimit: int = Field(..., description="Maximum number of containers allowed")
+    workspaceMonthlyIncludedUsd: float | None = Field(
+        None,
+        description="Included platform AI spend (USD) for active workspace period",
+    )
+    workspaceUsedUsd: float | None = Field(
+        None,
+        description="Platform AI spend (USD) used in the active workspace period",
+    )
+    workspacePeriodStart: datetime | None = None
+    workspacePeriodEnd: datetime | None = None
+    webSearchUsed: int | None = None
+    webSearchCap: int | None = None
 
 
 class MessageResponse(BaseModel):

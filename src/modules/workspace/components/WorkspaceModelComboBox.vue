@@ -78,12 +78,9 @@ const onSelect = (model: IAiModel) => {
         :size="triggerSize ?? 'default'"
         :aria-expanded="open"
         :disabled="disabled || models.length === 0"
-        :class="cn('w-full justify-between font-normal', props.class)"
+        :class="cn('w-full justify-between font-normal overflow-hidden', props.class)"
       >
-        <span v-if="selected" class="flex min-w-0 items-center gap-2">
-          <span class="truncate font-medium">{{ selected.name }}</span>
-          <span class="text-xs uppercase text-muted-foreground">{{ selected.provider }}</span>
-        </span>
+        <span v-if="selected" class="min-w-0 flex-1 truncate font-medium">{{ selected.name }}</span>
         <span v-else class="text-muted-foreground">
           {{ t('workspace.model.selectPlaceholder') }}
         </span>

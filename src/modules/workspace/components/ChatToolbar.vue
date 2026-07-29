@@ -39,7 +39,7 @@ const auditDisabled = computed(() => !activeRun && (stepCount ?? 0) === 0)
       :locked="agentLocked"
     />
 
-    <div class="min-w-0 w-[9.5rem] sm:w-[13rem]">
+    <div class="min-w-0 w-38 sm:w-52">
       <WorkspaceModelSelector />
     </div>
 

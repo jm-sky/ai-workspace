@@ -2,13 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.modules.agent.dependencies import AgentTenantContext
 from app.modules.auth.dependencies import CurrentUser
 from app.modules.wiki.schemas import (
+    WikiBulkDeleteResponse,
     WikiGraphResponse,
     WikiIngestRequest,
     WikiIngestResponse,
@@ -104,14 +105,52 @@ async def update_page(
         update_kwargs["frontmatter"] = payload.frontmatter
     try:
         result = await service.update_page(**update_kwargs)
-    except ImmutablePageError:
+    except ImmutablePageError as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot modify an immutable (raw) page",
-        )
+        ) from err
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page not found")
     return result
+
+
+@router.delete("/pages", response_model=WikiBulkDeleteResponse)
+async def bulk_delete_pages(
+    current_user: CurrentUser,
+    tenant_ctx: AgentTenantContext,
+    service: Annotated[WikiService, Depends(_get_wiki_service)],
+    folder: str | None = Query(default=None),
+    page_status: str | None = Query(default=None, alias="status"),
+    page_ids: list[str] | None = Query(default=None),
+    force: bool = Query(default=False),
+) -> WikiBulkDeleteResponse:
+    _ = current_user
+    deleted = await service.bulk_delete(
+        tenant_ctx=tenant_ctx,
+        folder=folder,
+        status=page_status,
+        page_ids=page_ids if page_ids else None,
+        force=force,
+    )
+    return WikiBulkDeleteResponse(deleted=deleted)
+
+
+@router.post("/purge", response_model=WikiBulkDeleteResponse)
+async def purge_all_pages(
+    current_user: CurrentUser,
+    tenant_ctx: AgentTenantContext,
+    service: Annotated[WikiService, Depends(_get_wiki_service)],
+    x_confirm: str | None = Header(default=None, alias="X-Confirm"),
+) -> WikiBulkDeleteResponse:
+    _ = current_user
+    if x_confirm != "purge":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing or invalid X-Confirm: purge header",
+        )
+    deleted = await service.purge_all(tenant_ctx=tenant_ctx)
+    return WikiBulkDeleteResponse(deleted=deleted)
 
 
 @router.delete("/pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -124,11 +163,11 @@ async def delete_page(
     _ = current_user
     try:
         deleted = await service.delete_page(tenant_ctx=tenant_ctx, page_id=page_id)
-    except ImmutablePageError:
+    except ImmutablePageError as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot delete an immutable (raw) page",
-        )
+        ) from err
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page not found")
 

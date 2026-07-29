@@ -11,13 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.id_utils import generate_id
 from app.modules.rag.repositories import RagRepository
-from app.modules.rag.schemas import RagSearchHit
 from app.modules.rag.services.rag_service import RagService
-from app.modules.rag.types import RagSourceType, RetrievalAcl
+from app.modules.rag.types import RagSourceType
 from app.modules.tenants.service import TenantContext
 from app.modules.wiki.db_models import WikiLink, WikiPage
 from app.modules.wiki.links import parse_wikilinks
-from app.modules.wiki.repositories import WikiRepository
+from app.modules.wiki.repositories import _UNSET, WikiRepository
 from app.modules.wiki.schemas import (
     WikiGraphEdge,
     WikiGraphNode,
@@ -29,7 +28,6 @@ from app.modules.wiki.schemas import (
     WikiPageDetailResponse,
     WikiPageResponse,
 )
-from app.modules.wiki.repositories import _UNSET
 from app.modules.wiki.types import WikiFolder
 
 logger = logging.getLogger(__name__)
@@ -73,23 +71,46 @@ def _link_to_response(link: WikiLink) -> WikiLinkResponse:
     )
 
 
-def _heuristic_extract_entities(content: str, max_items: int = 8) -> list[tuple[str, str]]:
+def _heuristic_extract_entities(content: str, max_items: int = 8) -> list[tuple[str, str, str]]:
     """Librarian heuristic extractor: pull headings and key lines as entity/concept seeds.
 
+    Returns list of (title, body, folder_hint) where folder_hint is 'entities' or 'concepts'.
     This is a deterministic fallback so that wiki_ingest works without
     an LLM key. A future iteration may call OpenRouter for richer extraction.
     """
-    items: list[tuple[str, str]] = []
-    heading_re = re.compile(r"^#{1,3}\s+(.+)", re.MULTILINE)
-    for m in heading_re.finditer(content):
-        title = m.group(1).strip()
-        if title and len(title) > 2:
-            items.append((title, f"Entity extracted from heading: {title}"))
+    items: list[tuple[str, str, str]] = []
+
+    # Build a map: heading title -> lines under that heading (for richer body)
+    heading_re = re.compile(r"^(#{1,3})\s+(.+)", re.MULTILINE)
+    lines = content.splitlines()
+
+    # Pass 1: headings (skip H1 — that's the document title)
+    heading_matches = list(heading_re.finditer(content))
+    for i, m in enumerate(heading_matches):
+        level = len(m.group(1))
+        if level == 1:
+            continue  # skip document title
+        title = m.group(2).strip()
+        if not title or len(title) <= 2:
+            continue
+
+        # Collect lines between this heading and the next
+        start_line = content[:m.end()].count("\n") + 1
+        if i + 1 < len(heading_matches):
+            end_line = content[:heading_matches[i + 1].start()].count("\n")
+        else:
+            end_line = len(lines)
+        section_lines = [l for l in lines[start_line:end_line] if l.strip()]
+        section_body = "\n".join(section_lines[:6])  # max 6 lines of context
+
+        body = f"{section_body}" if section_body else f"Sekcja z dokumentu: {title}"
+        items.append((title, body, "entities"))
         if len(items) >= max_items:
             break
 
+    # Pass 2: key:value lines → concepts
     if len(items) < max_items:
-        for line in content.splitlines():
+        for line in lines:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
@@ -97,8 +118,8 @@ def _heuristic_extract_entities(content: str, max_items: int = 8) -> list[tuple[
                 key, _, value = line.partition(":")
                 key = key.strip()
                 value = value.strip()
-                if key and len(key) > 2 and value:
-                    items.append((key, f"Concept extracted from content: {line[:200]}"))
+                if key and len(key) > 2 and value and len(key) < 60:
+                    items.append((key, value, "concepts"))
                 if len(items) >= max_items:
                     break
 
@@ -257,8 +278,8 @@ class WikiService:
         resp = _page_to_response(page)
         return WikiPageDetailResponse(
             **resp.model_dump(),
-            outgoingLinks=[_link_to_response(l) for l in outgoing],
-            incomingLinks=[_link_to_response(l) for l in incoming],
+            outgoingLinks=[_link_to_response(lnk) for lnk in outgoing],
+            incomingLinks=[_link_to_response(lnk) for lnk in incoming],
         )
 
     async def list_pages(
@@ -369,6 +390,10 @@ class WikiService:
         """
         await self.ensure_seed(tenant_ctx=tenant_ctx)
 
+        # Auto-detect title from first H1 heading if not provided
+        if not title:
+            first_h1 = re.search(r"^#\s+(.+)", content, re.MULTILINE)
+            title = first_h1.group(1).strip() if first_h1 else None
         ingest_title = title or "Untitled ingest"
 
         raw_page = await self.repo.create_page(
@@ -418,14 +443,13 @@ class WikiService:
         truncated = False
         total_pages_count = 2
 
-        for entity_title, entity_body in entities:
+        for entity_title, entity_body, folder_hint in entities:
             if total_pages_count >= RIPPLE_MAX_PAGES:
                 truncated = True
                 break
             total_pages_count += 1
 
-            is_concept = "concept" in entity_body.lower()
-            folder = WikiFolder.CONCEPTS.value if is_concept else WikiFolder.ENTITIES.value
+            folder = WikiFolder.CONCEPTS.value if folder_hint == "concepts" else WikiFolder.ENTITIES.value
 
             entity_slug = _slugify(entity_title)
             if not entity_slug:
@@ -607,13 +631,66 @@ class WikiService:
             ],
             edges=[
                 WikiGraphEdge(
-                    fromId=l.from_page_id,
-                    toId=l.to_page_id,
-                    toSlug=l.to_slug,
+                    fromId=lnk.from_page_id,
+                    toId=lnk.to_page_id,
+                    toSlug=lnk.to_slug,
                 )
-                for l in links
+                for lnk in links
             ],
         )
+
+
+    async def bulk_delete(
+        self,
+        *,
+        tenant_ctx: TenantContext,
+        folder: str | None = None,
+        status: str | None = None,
+        page_ids: list[str] | None = None,
+        force: bool = False,
+    ) -> int:
+        """Bulk delete wiki pages matching given filters / IDs.
+
+        Immutable (raw) pages are skipped unless force=True.
+        Cleans up associated RAG documents.
+        """
+        pages = await self.repo.bulk_delete_pages(
+            tenant_id=tenant_ctx.tenant_id,
+            user_id=tenant_ctx.user_id,
+            folder=folder,
+            status=status,
+            page_ids=page_ids,
+            force=force,
+        )
+        for page in pages:
+            if page.document_id:
+                await self.rag_repo.delete_document(
+                    page.document_id,
+                    tenant_id=tenant_ctx.tenant_id,
+                    user_id=tenant_ctx.user_id,
+                )
+        await self.db.commit()
+        return len(pages)
+
+    async def purge_all(
+        self,
+        *,
+        tenant_ctx: TenantContext,
+    ) -> int:
+        """Delete ALL wiki pages for user in tenant. Cleans up RAG documents."""
+        pages = await self.repo.purge_all_pages(
+            tenant_id=tenant_ctx.tenant_id,
+            user_id=tenant_ctx.user_id,
+        )
+        for page in pages:
+            if page.document_id:
+                await self.rag_repo.delete_document(
+                    page.document_id,
+                    tenant_id=tenant_ctx.tenant_id,
+                    user_id=tenant_ctx.user_id,
+                )
+        await self.db.commit()
+        return len(pages)
 
 
 class ImmutablePageError(Exception):

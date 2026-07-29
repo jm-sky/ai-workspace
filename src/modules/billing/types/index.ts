@@ -31,6 +31,12 @@ export interface SubscriptionLimits {
   canExportData: boolean
   canUseAdvancedFeatures: boolean
   requiresByok: boolean
+  workspaceMonthlyIncludedUsd?: number | null
+  workspaceUsedUsd?: number | null
+  workspacePeriodStart?: string | null
+  workspacePeriodEnd?: string | null
+  webSearchUsed?: number | null
+  webSearchCap?: number | null
 }
 
 export interface CreateCheckoutSessionRequest {

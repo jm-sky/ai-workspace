@@ -10,6 +10,8 @@ from app.modules.memory.db_models import MemoryEntry
 from app.modules.memory.repositories import MemoryRepository
 from app.modules.memory.schemas import MemoryEntryResponse
 from app.modules.memory.types import MemoryScope
+from app.modules.tenants.service import TenantContext
+from app.modules.usage.embedding_factory import create_embedding_service
 
 
 class PgVectorMemoryBackend:
@@ -24,10 +26,15 @@ class PgVectorMemoryBackend:
         self.repo = MemoryRepository(db)
         self._embedding: EmbeddingService | None = None
 
-    def _embedder(self) -> EmbeddingService:
-        if self._embedding is None:
-            self._embedding = EmbeddingService()
-        return self._embedding
+    async def _embedder_for(self, tenant_id: str, user_id: str) -> EmbeddingService:
+        if self._embedding is not None:
+            return self._embedding
+        tenant_ctx = TenantContext(
+            user_id=user_id,
+            tenant_id=tenant_id,
+            tenant_role="member",
+        )
+        return await create_embedding_service(self.db, tenant_ctx=tenant_ctx)
 
     async def create(
         self,
@@ -48,7 +55,7 @@ class PgVectorMemoryBackend:
         scoped like retrieval by agent_key/session_id), no new row is written
         and ``duplicate_of_id`` carries the existing entry's id.
         """
-        embedding = await self._embedder().embed(content)
+        embedding = await (await self._embedder_for(tenant_id, user_id)).embed(content)
 
         existing = await self.repo.search_similar(
             tenant_id=tenant_id,
@@ -91,7 +98,7 @@ class PgVectorMemoryBackend:
         if not settings.ai.memory_enabled:
             return []
 
-        embedding = await self._embedder().embed(query)
+        embedding = await (await self._embedder_for(tenant_id, user_id)).embed(query)
         results = await self.repo.search_similar(
             tenant_id=tenant_id,
             user_id=user_id,
@@ -201,7 +208,7 @@ class PgVectorMemoryBackend:
 
         embedding: list[float] | None = None
         if content_changed and new_content is not None:
-            embedding = await self._embedder().embed(new_content)
+            embedding = await (await self._embedder_for(tenant_id, user_id)).embed(new_content)
 
         entry = await self.repo.update(
             entry_id,

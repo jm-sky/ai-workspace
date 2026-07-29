@@ -45,6 +45,12 @@ export const en = {
       message: 'You have grandfathered lifetime access to Pro features. Thank you for being an early supporter!',
     },
     planSuffix: 'Plan',
+    workspaceUsage: {
+      title: 'AI workspace usage',
+      description: 'Platform OpenRouter spend for your active workspace this billing period',
+      used: 'Included AI spend',
+      webSearch: 'Web search: {used} / {cap} this period',
+    },
     currentPeriodLabel: 'Current Period:',
     subscriptionWillCancel: 'Subscription will cancel on',
     plans: {

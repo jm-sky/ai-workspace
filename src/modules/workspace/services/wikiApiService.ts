@@ -68,3 +68,20 @@ export async function lintWiki(): Promise<IWikiLintResponse> {
   const response = await apiClient.post<IWikiLintResponse>('/wiki/lint')
   return response.data
 }
+
+export async function bulkDeleteWikiPages(params: {
+  folder?: string
+  status?: string
+  page_ids?: string[]
+  force?: boolean
+}): Promise<{ deleted: number }> {
+  const response = await apiClient.delete<{ deleted: number }>('/wiki/pages', { params })
+  return response.data
+}
+
+export async function purgeAllWikiPages(): Promise<{ deleted: number }> {
+  const response = await apiClient.post<{ deleted: number }>('/wiki/purge', {}, {
+    headers: { 'X-Confirm': 'purge' },
+  })
+  return response.data
+}

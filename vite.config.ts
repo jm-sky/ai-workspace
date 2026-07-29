@@ -8,6 +8,7 @@ import { pwaPlugin } from './pwa.config'
 
 // https://vite.dev/config/Pfix
 export default defineConfig(({ mode }) => {
+  const DEFAULT_PORT = 5179
   const root = fileURLToPath(new URL('./', import.meta.url))
   const envVars = loadEnv(mode, root, 'VITE_')
   const isProduction = mode === 'production'
@@ -44,7 +45,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: envVars.VITE_PORT ? parseInt(envVars.VITE_PORT) : 5176,
+      port: envVars.VITE_PORT ? parseInt(envVars.VITE_PORT) : DEFAULT_PORT,
       proxy: {
         '/api': {
           target: envVars.VITE_API_PROXY_URL ?? 'http://localhost:8003',

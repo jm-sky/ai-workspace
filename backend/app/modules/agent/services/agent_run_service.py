@@ -37,6 +37,11 @@ from app.modules.ai.utils.models_config import get_model_by_id, has_live_catalog
 from app.modules.integrations.service import IntegrationTokenService
 from app.modules.memory.services.memory_service import MemoryService
 from app.modules.tenants.service import TenantContext
+from app.modules.usage.billing_period import resolve_funding
+from app.modules.usage.guard import UsageGuard
+from app.modules.usage.recorder import UsageRecordContext, UsageRecorder
+from app.modules.usage.repository import UsageRepository
+from app.modules.usage.types import FundingSource
 from app.modules.workspace_config.repositories import WorkspaceConfigRepository
 from app.modules.workspace_config.resolver import WorkspaceConfigResolver
 
@@ -133,6 +138,22 @@ class AgentRunService:
         )
         rag_enabled = workspace_rag and definition.rag_enabled
         web_search_enabled = workspace_web_search and "web" in definition.tool_profile
+
+        usage_guard = UsageGuard(self.db)
+        await usage_guard.assert_agent_run_allowed(tenant_ctx)
+
+        funding = await resolve_funding(
+            self.db,
+            tenant_id=tenant_ctx.tenant_id,
+            user_id=tenant_ctx.user_id,
+            platform_api_key=settings.ai.openrouter_api_key,
+        )
+        if funding.source == FundingSource.PLATFORM and not funding.api_key:
+            raise AgentNotConfiguredError("OPENROUTER_API_KEY is not configured")
+
+        if web_search_enabled and not await usage_guard.is_web_search_allowed(tenant_ctx):
+            web_search_enabled = False
+
         # In server mode OpenRouter executes the web tools; in local mode they are
         # registered in our own tool registry instead.
         server_web_tools = web_search_enabled and settings.ai.web_search_mode == "server"
@@ -213,6 +234,14 @@ class AgentRunService:
             tool_registry=tool_registry,
             agent_key=agent_key,
             server_web_tools=server_web_tools,
+            api_key=funding.api_key,
+            usage_recorder=UsageRecorder(self.db),
+            usage_ctx=UsageRecordContext(
+                tenant_id=tenant_ctx.tenant_id,
+                user_id=tenant_ctx.user_id,
+                funding_source=funding.source,
+                agent_run_id=run.id,
+            ),
         )
 
         step_index = 0
@@ -255,6 +284,10 @@ class AgentRunService:
                         )
                         step_index += 1
 
+                    usage_repo = UsageRepository(self.db)
+                    ledger_cost = await usage_repo.sum_run_cost_usd(run.id)
+                    final_cost = ledger_cost if ledger_cost > 0 else event.data.get("costUsd")
+
                     await self.run_repo.complete_run(
                         run,
                         status="completed",
@@ -262,7 +295,7 @@ class AgentRunService:
                         prompt_tokens=event.data.get("promptTokens", 0),
                         completion_tokens=event.data.get("completionTokens", 0),
                         total_tokens=event.data.get("totalTokens", 0),
-                        cost_usd=event.data.get("costUsd"),
+                        cost_usd=final_cost,
                         blocks=event.data.get("blocks"),
                         run_metadata={
                             **(run.run_metadata or {}),
