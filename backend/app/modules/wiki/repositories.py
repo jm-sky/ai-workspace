@@ -157,6 +157,30 @@ class WikiRepository:
         await self.db.delete(page)
         await self.db.flush()
 
+    async def list_link_targets(
+        self,
+        *,
+        tenant_id: str,
+        user_id: str,
+        folders: list[str],
+        status: str = "active",
+        limit: int = 2000,
+    ) -> list[tuple[str, str, str]]:
+        """Return (slug, title, folder) for auto-wikilink catalog."""
+        if not folders:
+            return []
+        result = await self.db.execute(
+            select(WikiPage.slug, WikiPage.title, WikiPage.folder)
+            .where(
+                WikiPage.tenant_id == tenant_id,
+                WikiPage.user_id == user_id,
+                WikiPage.folder.in_(folders),
+                WikiPage.status == status,
+            )
+            .limit(limit)
+        )
+        return [(row[0], row[1], row[2]) for row in result.all()]
+
     async def slug_exists(
         self,
         *,

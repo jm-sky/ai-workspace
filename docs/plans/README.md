@@ -23,5 +23,6 @@ Plany implementacji funkcji i większych zmian.
 | 011 | [2026-07-25--011--memory-graph-graphiti.md](2026-07-25--011--memory-graph-graphiti.md) | Memory graph — facade MemoryBackend + bramkowany spike/cutover Graphiti | in progress |
 | 012 | [2026-07-28--012--composer-plus-menu.md](2026-07-28--012--composer-plus-menu.md) | Composer „+” menu — pliki + soft context GitHub/Gmail/Knowledge | done |
 | 013 | [2026-07-28--013--web-search.md](2026-07-28--013--web-search.md) | Web search + web fetch — hybryda server/local, blok `sources`, SSRF guard | verification needed |
+| 016 | [2026-07-29--016--wiki-librarian-auto-link-dedupe.md](2026-07-29--016--wiki-librarian-auto-link-dedupe.md) | Wiki librarian — merge encji przy slug collision + auto-wikilink przy ingest | done |
 
 When adding a new entry: pick next `NNN`, create `YYYY-MM-DD--NNN--slug.md`, add a row here.
