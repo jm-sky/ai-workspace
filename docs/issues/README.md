@@ -51,5 +51,6 @@ Ustalenie po re-weryfikacji vs ai-kancelaria (po `git pull`). Memory injection *
 | 025 | [2026-07-20--025--backport-shared-core-security-fixes.md](2026-07-20--025--backport-shared-core-security-fixes.md) | Backport: rate limiting, admin auth bypass, WebAuthn login (shared core) | `done` |
 | 026 | [2026-07-22--026--oauth-session-and-state-backport.md](2026-07-22--026--oauth-session-and-state-backport.md) | Backport: OAuth session/2FA parity + CSRF state store (gear-stack 036+037) | `done` |
 | 027 | [2026-07-11--027--chat-tool-memory-step-disappears.md](2026-07-11--027--chat-tool-memory-step-disappears.md) | Chat — krok narzędzia (memory) znika po zakończeniu runu | `todo` |
+| 028 | [2026-07-29--028--gmail-rich-blocks-markdown.md](2026-07-29--028--gmail-rich-blocks-markdown.md) | Gmail → rich blocks (card/table) + styl Markdown w czacie | `done` |
 
 When adding a new issue: pick next `NNN`, create `YYYY-MM-DD--NNN--slug.md`, add a row here.
