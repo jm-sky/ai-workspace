@@ -26,6 +26,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -40,7 +47,7 @@ import {
 } from '@/components/ui/tooltip'
 import ChatLayout from '@/layouts/ChatLayout.vue'
 import { useWikiBrowser } from '@/modules/workspace/composables/useWikiBrowser'
-import type { WikiFolder } from '@/modules/workspace/types/wiki'
+import { WIKI_SORT_KEYS, type WikiFolder } from '@/modules/workspace/types/wiki'
 
 const { t } = useI18n()
 
@@ -66,6 +73,7 @@ const {
   filteredPages,
   selectedIds,
   searchQuery,
+  sortBy,
   allFilteredSelected,
   loadPages,
   selectPage,
@@ -385,13 +393,31 @@ const svgRef = ref<SVGSVGElement | null>(null)
 
           <!-- Page list + detail -->
           <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-            <!-- Search + selection toolbar -->
+            <!-- Search + sort + selection toolbar -->
             <div class="flex shrink-0 items-center gap-2">
               <Input
                 v-model="searchQuery"
                 :placeholder="t('workspace.wiki.searchPlaceholder')"
                 class="h-8 flex-1 text-sm"
               />
+              <Select v-model="sortBy">
+                <SelectTrigger
+                  size="sm"
+                  class="h-8 w-44 shrink-0 cursor-pointer sm:w-52"
+                  :aria-label="t('workspace.wiki.sortBy')"
+                >
+                  <SelectValue :placeholder="t('workspace.wiki.sortBy')" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="key in WIKI_SORT_KEYS"
+                    :key="key"
+                    :value="key"
+                  >
+                    {{ t(`workspace.wiki.sort.${key}`) }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
               <div
                 v-if="selectedIds.size > 0"
                 class="flex items-center gap-2"

@@ -18,7 +18,26 @@ import type {
   IWikiPage,
   IWikiPageDetail,
   WikiFolder,
+  WikiSortKey,
 } from '@/modules/workspace/types/wiki'
+
+function compareWikiPages(a: IWikiPage, b: IWikiPage, sortBy: WikiSortKey): number {
+  switch (sortBy) {
+    case 'updated_asc':
+      return a.updatedAt.localeCompare(b.updatedAt)
+    case 'created_desc':
+      return b.createdAt.localeCompare(a.createdAt)
+    case 'created_asc':
+      return a.createdAt.localeCompare(b.createdAt)
+    case 'title_asc':
+      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+    case 'title_desc':
+      return b.title.localeCompare(a.title, undefined, { sensitivity: 'base' })
+    case 'updated_desc':
+    default:
+      return b.updatedAt.localeCompare(a.updatedAt)
+  }
+}
 
 export function useWikiBrowser() {
   const pages = ref<IWikiPage[]>([])
@@ -33,9 +52,10 @@ export function useWikiBrowser() {
   const isGraphLoading = ref(false)
   const lintResult = ref<IWikiLintResponse | null>(null)
 
-  // Multi-select & search state
+  // Multi-select, search & sort state
   const selectedIds = ref<Set<string>>(new Set())
   const searchQuery = ref('')
+  const sortBy = ref<WikiSortKey>('updated_desc')
 
   const folderCounts = computed(() => {
     const counts: Record<string, number> = {}
@@ -58,7 +78,7 @@ export function useWikiBrowser() {
           p.slug.toLowerCase().includes(q),
       )
     }
-    return result
+    return [...result].sort((a, b) => compareWikiPages(a, b, sortBy.value))
   })
 
   const allFilteredSelected = computed(
@@ -263,6 +283,7 @@ export function useWikiBrowser() {
     filteredPages,
     selectedIds,
     searchQuery,
+    sortBy,
     allFilteredSelected,
     loadPages,
     selectPage,
