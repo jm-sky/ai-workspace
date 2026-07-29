@@ -28,7 +28,7 @@ defineProps<{
           :src="attachment.previewUrl"
           :alt="attachment.originalFilename"
           class="max-h-[70vh] max-w-full rounded-lg object-contain"
-        >
+        />
       </div>
     </DialogContent>
   </Dialog>

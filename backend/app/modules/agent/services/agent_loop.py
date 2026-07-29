@@ -20,7 +20,7 @@ from app.modules.agent.schemas import ChartBlockData, SourcesBlockData
 from app.modules.agent.tools.base import AgentToolRegistry
 from app.modules.ai.utils.models_config import calculate_cost
 from app.modules.usage.openrouter_client import create_openrouter_client
-from app.modules.usage.recorder import UsageRecorder, UsageRecordContext, extract_cost_from_usage
+from app.modules.usage.recorder import UsageRecordContext, UsageRecorder, extract_cost_from_usage
 from app.modules.usage.types import UsagePurpose
 
 logger = logging.getLogger(__name__)

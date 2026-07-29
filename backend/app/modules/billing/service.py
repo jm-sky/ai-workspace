@@ -316,8 +316,9 @@ class BillingService:
 
         plan_tier = subscription.plan_tier
 
-        from app.modules.billing.entitlements import get_plan_entitlements
         from typing import Literal, cast
+
+        from app.modules.billing.entitlements import get_plan_entitlements
 
         plan_limits = {
             tier: {

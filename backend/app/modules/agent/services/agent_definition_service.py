@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.agent.db_models import AgentDB
 from app.modules.agent.exceptions import AgentNotConfiguredError
-from app.modules.agent.registry import AgentDefinition, BUILTIN_AGENTS, get_default_agent_key
+from app.modules.agent.registry import BUILTIN_AGENTS, AgentDefinition, get_default_agent_key
 from app.modules.agent.repositories.agent_repository import AgentRepository
 
 AGENT_KEY_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")

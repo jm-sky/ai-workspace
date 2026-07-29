@@ -17,8 +17,8 @@ import {
 } from '@/components/ui/select'
 import { useAuth } from '@/modules/auth/composables/useAuth'
 import {
-  defaultGmailScopes,
   defaultGithubScopes,
+  defaultGmailScopes,
   useIntegrationOAuth,
   visibilityLabelKey,
 } from '@/modules/settings/composables/useIntegrationOAuth'

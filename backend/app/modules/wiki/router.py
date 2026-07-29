@@ -104,11 +104,11 @@ async def update_page(
         update_kwargs["frontmatter"] = payload.frontmatter
     try:
         result = await service.update_page(**update_kwargs)
-    except ImmutablePageError:
+    except ImmutablePageError as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot modify an immutable (raw) page",
-        )
+        ) from err
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page not found")
     return result
@@ -124,11 +124,11 @@ async def delete_page(
     _ = current_user
     try:
         deleted = await service.delete_page(tenant_ctx=tenant_ctx, page_id=page_id)
-    except ImmutablePageError:
+    except ImmutablePageError as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot delete an immutable (raw) page",
-        )
+        ) from err
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Page not found")
 

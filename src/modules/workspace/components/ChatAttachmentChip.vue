@@ -36,7 +36,7 @@ const formatSize = (bytes: number) => {
         :src="attachment.previewUrl"
         :alt="attachment.originalFilename"
         class="size-full object-cover"
-      >
+      />
       <FileText
         v-else
         class="size-5 text-muted-foreground"

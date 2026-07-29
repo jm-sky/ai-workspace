@@ -20,11 +20,12 @@ from app.modules.agent.exceptions import (
 from app.modules.agent.schemas import AgentChatRequest
 from app.modules.agent.services.agent_run_service import AgentRunService
 from app.modules.auth.dependencies import CurrentUser
+from app.modules.billing.exceptions import FreeTrierRequiresBYOKError
 from app.modules.integrations.repositories import (
     IntegrationTokenRepository,
     get_integration_token_repository,
 )
-from app.modules.billing.exceptions import FreeTrierRequiresBYOKError
+from app.modules.integrations.service import IntegrationTokenService
 from app.modules.usage.exceptions import UsageLimitExceededError
 
 router = APIRouter(prefix="/chat", tags=["agent-chat"])

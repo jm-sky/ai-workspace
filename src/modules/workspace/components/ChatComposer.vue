@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Send } from 'lucide-vue-next'
 import { useMediaQuery } from '@vueuse/core'
+import { Send } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'

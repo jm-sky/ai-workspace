@@ -3,12 +3,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.billing.exceptions import FreeTrierRequiresBYOKError
+from app.modules.tenants.service import TenantContext
 from app.modules.usage.billing_period import resolve_funding
 from app.modules.usage.exceptions import UsageLimitExceededError
 from app.modules.usage.quota_resolver import EffectiveQuotaResolver
 from app.modules.usage.repository import UsageRepository
 from app.modules.usage.types import FundingSource, UsagePurposeGroup
-from app.modules.tenants.service import TenantContext
 
 
 class UsageGuard:

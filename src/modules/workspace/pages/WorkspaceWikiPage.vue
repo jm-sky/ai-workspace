@@ -3,9 +3,9 @@ import {
   AlertTriangle,
   BookOpen,
   ChevronRight,
-  Eye,
   FileText,
   FolderOpen,
+  Info,
   Link2,
   Network,
   Plus,
@@ -31,6 +31,12 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import ChatLayout from '@/layouts/ChatLayout.vue'
 import { useWikiBrowser } from '@/modules/workspace/composables/useWikiBrowser'
 import type { WikiFolder } from '@/modules/workspace/types/wiki'
@@ -47,30 +53,26 @@ const FOLDERS: { key: WikiFolder; icon: typeof FolderOpen }[] = [
 ]
 
 const {
-  pages,
   total,
   isLoading,
   isSaving,
   error,
   selectedPage,
-  isPageLoading,
   activeFolder,
   graphData,
   isGraphLoading,
-  lintResult,
   filteredPages,
   loadPages,
   selectPage,
-  closePage,
   addPage,
   removePage,
   doDeprecate,
   doIngest,
   loadGraph,
-  runLint,
 } = useWikiBrowser()
 
 const activeTab = ref('pages')
+const showHelp = ref(false)
 const newTitle = ref('')
 const newBody = ref('')
 const ingestTitle = ref('')
@@ -174,23 +176,65 @@ const svgRef = ref<SVGSVGElement | null>(null)
           </div>
         </div>
         <div class="flex gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            @click="showNewPageDialog = true"
-          >
-            <Plus class="size-4" />
-            {{ t('workspace.wiki.newPage') }}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            @click="showIngestDialog = true"
-          >
-            <FileText class="size-4" />
-            {{ t('workspace.wiki.ingest') }}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  class="size-8 p-0"
+                  @click="showHelp = !showHelp"
+                >
+                  <Info class="size-4 text-muted-foreground" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('workspace.wiki.help.howItWorks') }}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  @click="showNewPageDialog = true"
+                >
+                  <Plus class="size-4" />
+                  {{ t('workspace.wiki.newPage') }}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('workspace.wiki.help.newPage') }}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  @click="showIngestDialog = true"
+                >
+                  <FileText class="size-4" />
+                  {{ t('workspace.wiki.ingest') }}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('workspace.wiki.help.ingest') }}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
+      </div>
+
+      <!-- Help banner -->
+      <div
+        v-if="showHelp"
+        class="shrink-0 rounded-xl border border-hairline bg-blue-50/50 px-4 py-3 text-sm dark:bg-blue-950/20"
+      >
+        <p class="mb-1 font-medium text-foreground">
+          {{ t('workspace.wiki.help.howItWorks') }}
+        </p>
+        <p class="text-muted-foreground">
+          {{ t('workspace.wiki.help.howItWorksBody') }}
+        </p>
       </div>
 
       <p v-if="error" class="shrink-0 text-sm text-destructive">
@@ -226,16 +270,26 @@ const svgRef = ref<SVGSVGElement | null>(null)
               <FolderOpen class="size-3.5" />
               {{ t('workspace.wiki.allFolders') }}
             </button>
-            <button
+            <TooltipProvider
               v-for="f in FOLDERS"
               :key="f.key"
-              class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted"
-              :class="{ 'bg-muted font-medium': activeFolder === f.key }"
-              @click="handleFolderClick(f.key)"
             >
-              <component :is="f.icon" class="size-3.5" />
-              {{ t(`workspace.wiki.folders.${f.key}`) }}
-            </button>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <button
+                    class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted"
+                    :class="{ 'bg-muted font-medium': activeFolder === f.key }"
+                    @click="handleFolderClick(f.key)"
+                  >
+                    <component :is="f.icon" class="size-3.5" />
+                    {{ t(`workspace.wiki.folders.${f.key}`) }}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {{ t(`workspace.wiki.help.folders.${f.key}`) }}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
 
           <!-- Page list + detail -->
@@ -305,28 +359,47 @@ const svgRef = ref<SVGSVGElement | null>(null)
                     <Badge :variant="statusVariant(selectedPage.status)">
                       {{ selectedPage.status }}
                     </Badge>
-                    <span v-if="selectedPage.immutable">🔒</span>
+                    <TooltipProvider v-if="selectedPage.immutable">
+                      <Tooltip>
+                        <TooltipTrigger as-child>
+                          <span class="cursor-default">🔒</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{{ t('workspace.wiki.help.immutable') }}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
                 <div class="flex gap-1">
-                  <Button
-                    v-if="!selectedPage.immutable && selectedPage.status === 'active'"
-                    variant="ghost"
-                    size="icon"
-                    :aria-label="t('workspace.wiki.deprecate')"
-                    @click="confirmDeprecateId = selectedPage.id"
-                  >
-                    <AlertTriangle class="size-4 text-amber-500" />
-                  </Button>
-                  <Button
-                    v-if="!selectedPage.immutable"
-                    variant="ghost"
-                    size="icon"
-                    :aria-label="t('workspace.wiki.delete')"
-                    @click="handleDelete(selectedPage.id)"
-                  >
-                    <Trash2 class="size-4 text-destructive" />
-                  </Button>
+                  <TooltipProvider v-if="!selectedPage.immutable && selectedPage.status === 'active'">
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          :aria-label="t('workspace.wiki.deprecate')"
+                          @click="confirmDeprecateId = selectedPage.id"
+                        >
+                          <AlertTriangle class="size-4 text-amber-500" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{{ t('workspace.wiki.help.deprecate') }}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <TooltipProvider v-if="!selectedPage.immutable">
+                    <Tooltip>
+                      <TooltipTrigger as-child>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          :aria-label="t('workspace.wiki.delete')"
+                          @click="handleDelete(selectedPage.id)"
+                        >
+                          <Trash2 class="size-4 text-destructive" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>{{ t('workspace.wiki.help.delete') }}</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </div>
 
@@ -471,6 +544,9 @@ const svgRef = ref<SVGSVGElement | null>(null)
               :placeholder="t('workspace.wiki.bodyPlaceholder')"
               rows="6"
             />
+            <p class="mt-1 text-xs text-muted-foreground">
+              {{ t('workspace.wiki.help.newPageLinkHint') }}
+            </p>
           </div>
           <div class="flex justify-end">
             <Button
@@ -493,6 +569,9 @@ const svgRef = ref<SVGSVGElement | null>(null)
         <DialogHeader>
           <DialogTitle>{{ t('workspace.wiki.ingestTitle') }}</DialogTitle>
         </DialogHeader>
+        <p class="text-sm text-muted-foreground">
+          {{ t('workspace.wiki.help.ingestDialogHint') }}
+        </p>
         <div class="space-y-3">
           <div>
             <Label>{{ t('workspace.wiki.ingestTitleLabel') }}</Label>

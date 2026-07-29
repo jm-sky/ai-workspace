@@ -11,7 +11,7 @@ from openai import InternalServerError, RateLimitError
 from app.core.config import settings
 from app.core.redis import get_redis_client
 from app.modules.usage.openrouter_client import create_openrouter_client
-from app.modules.usage.recorder import UsageRecorder, UsageRecordContext
+from app.modules.usage.recorder import UsageRecordContext, UsageRecorder
 
 logger = logging.getLogger(__name__)
 

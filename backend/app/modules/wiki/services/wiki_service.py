@@ -11,13 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.id_utils import generate_id
 from app.modules.rag.repositories import RagRepository
-from app.modules.rag.schemas import RagSearchHit
 from app.modules.rag.services.rag_service import RagService
-from app.modules.rag.types import RagSourceType, RetrievalAcl
+from app.modules.rag.types import RagSourceType
 from app.modules.tenants.service import TenantContext
 from app.modules.wiki.db_models import WikiLink, WikiPage
 from app.modules.wiki.links import parse_wikilinks
-from app.modules.wiki.repositories import WikiRepository
+from app.modules.wiki.repositories import _UNSET, WikiRepository
 from app.modules.wiki.schemas import (
     WikiGraphEdge,
     WikiGraphNode,
@@ -29,7 +28,6 @@ from app.modules.wiki.schemas import (
     WikiPageDetailResponse,
     WikiPageResponse,
 )
-from app.modules.wiki.repositories import _UNSET
 from app.modules.wiki.types import WikiFolder
 
 logger = logging.getLogger(__name__)
@@ -257,8 +255,8 @@ class WikiService:
         resp = _page_to_response(page)
         return WikiPageDetailResponse(
             **resp.model_dump(),
-            outgoingLinks=[_link_to_response(l) for l in outgoing],
-            incomingLinks=[_link_to_response(l) for l in incoming],
+            outgoingLinks=[_link_to_response(lnk) for lnk in outgoing],
+            incomingLinks=[_link_to_response(lnk) for lnk in incoming],
         )
 
     async def list_pages(
@@ -607,11 +605,11 @@ class WikiService:
             ],
             edges=[
                 WikiGraphEdge(
-                    fromId=l.from_page_id,
-                    toId=l.to_page_id,
-                    toSlug=l.to_slug,
+                    fromId=lnk.from_page_id,
+                    toId=lnk.to_page_id,
+                    toSlug=lnk.to_slug,
                 )
-                for l in links
+                for lnk in links
             ],
         )
 

@@ -5,6 +5,7 @@ This is the official recommended approach from OpenRouter documentation.
 
 from typing import Any, cast
 
+from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
 from app.core.config import settings

@@ -4,10 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.embeddings import EmbeddingService
 from app.core.config import settings
+from app.modules.tenants.service import TenantContext
 from app.modules.usage.billing_period import resolve_funding
 from app.modules.usage.guard import UsageGuard
-from app.modules.usage.recorder import UsageRecorder, UsageRecordContext
-from app.modules.tenants.service import TenantContext
+from app.modules.usage.recorder import UsageRecordContext, UsageRecorder
 
 
 async def create_embedding_service(

@@ -14,11 +14,6 @@ from app.modules.agent.exceptions import (
     AgentToolsDisabledError,
     AgentVisionRequiredError,
 )
-from app.modules.usage.billing_period import resolve_funding
-from app.modules.usage.guard import UsageGuard
-from app.modules.usage.recorder import UsageRecorder, UsageRecordContext
-from app.modules.usage.repository import UsageRepository
-from app.modules.usage.types import FundingSource
 from app.modules.agent.guards import (
     SourceRoutingWarning,
     check_source_mismatch,
@@ -42,6 +37,11 @@ from app.modules.ai.utils.models_config import get_model_by_id, has_live_catalog
 from app.modules.integrations.service import IntegrationTokenService
 from app.modules.memory.services.memory_service import MemoryService
 from app.modules.tenants.service import TenantContext
+from app.modules.usage.billing_period import resolve_funding
+from app.modules.usage.guard import UsageGuard
+from app.modules.usage.recorder import UsageRecordContext, UsageRecorder
+from app.modules.usage.repository import UsageRepository
+from app.modules.usage.types import FundingSource
 from app.modules.workspace_config.repositories import WorkspaceConfigRepository
 from app.modules.workspace_config.resolver import WorkspaceConfigResolver
 

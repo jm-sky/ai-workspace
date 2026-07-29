@@ -6,8 +6,8 @@ import {
 import { getApiErrorMessage } from '@/shared/utils/apiError'
 import type { IChatAttachment } from '@/modules/workspace/types/attachments'
 
-const IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-const TEXT_EXT = new Set(['txt', 'md', 'json', 'csv', 'yaml', 'yml'])
+const IMAGE_MIME = new Set(['image/gif', 'image/jpeg', 'image/png', 'image/webp'])
+const TEXT_EXT = new Set(['csv', 'json', 'md', 'txt', 'yaml', 'yml'])
 const PDF_EXT = new Set(['pdf'])
 
 export const ATTACHMENT_ACCEPT = [
