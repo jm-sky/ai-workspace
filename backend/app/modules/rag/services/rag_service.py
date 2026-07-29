@@ -138,6 +138,44 @@ class RagService:
         )
         return response, chunks
 
+    async def store_chunks(
+        self,
+        *,
+        document_id: str,
+        tenant_id: str,
+        user_id: str,
+        chunks: list[str],
+    ) -> None:
+        """Embed + persist chunks and mark the document `ready`.
+
+        Does not commit or rollback — callers own the transaction (wiki sync
+        shares the page write; background ingest commits via
+        ``run_chunk_ingest``).
+        """
+        tenant_ctx = TenantContext(
+            user_id=user_id,
+            tenant_id=tenant_id,
+            tenant_role="member",
+        )
+        if self._embedding is not None:
+            embedder = self._embedding
+        else:
+            embedder = await create_embedding_service(self.db, tenant_ctx=tenant_ctx)
+        embeddings = await embedder.embed_batch(chunks)
+        for index, (piece, embedding) in enumerate(zip(chunks, embeddings, strict=True)):
+            await self.repo.insert_chunk(
+                document_id=document_id,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                chunk_index=index,
+                content=piece,
+                embedding=embedding,
+                token_estimate=max(1, len(piece) // 4),
+                embedding_model=embedder.model,
+                embedding_version=settings.ai.embedding_version,
+            )
+        await self.repo.set_document_status(document_id, status="ready")
+
     async def run_chunk_ingest(
         self,
         *,
@@ -149,29 +187,12 @@ class RagService:
         """Embed + persist chunks for a pending document; flips status to
         `ready`/`failed`. Intended to run outside the HTTP request cycle."""
         try:
-            tenant_ctx = TenantContext(
-                user_id=user_id,
+            await self.store_chunks(
+                document_id=document_id,
                 tenant_id=tenant_id,
-                tenant_role="member",
+                user_id=user_id,
+                chunks=chunks,
             )
-            if self._embedding is not None:
-                embedder = self._embedding
-            else:
-                embedder = await create_embedding_service(self.db, tenant_ctx=tenant_ctx)
-            embeddings = await embedder.embed_batch(chunks)
-            for index, (piece, embedding) in enumerate(zip(chunks, embeddings, strict=True)):
-                await self.repo.insert_chunk(
-                    document_id=document_id,
-                    tenant_id=tenant_id,
-                    user_id=user_id,
-                    chunk_index=index,
-                    content=piece,
-                    embedding=embedding,
-                    token_estimate=max(1, len(piece) // 4),
-                    embedding_model=embedder.model,
-                    embedding_version=settings.ai.embedding_version,
-                )
-            await self.repo.set_document_status(document_id, status="ready")
             await self.db.commit()
         except Exception as exc:
             logger.exception("RAG ingest failed for document %s", document_id)

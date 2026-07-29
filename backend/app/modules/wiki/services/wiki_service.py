@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.id_utils import generate_id
+from app.core.config import settings
+from app.modules.rag.chunker import looks_like_markdown, split_markdown, split_text
 from app.modules.rag.repositories import RagRepository
 from app.modules.rag.services.rag_service import RagService
 from app.modules.rag.types import RagSourceType
@@ -30,6 +32,7 @@ from app.modules.wiki.schemas import (
     WikiPageResponse,
 )
 from app.modules.wiki.types import WikiFolder
+
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +185,11 @@ class WikiService:
         return f"{slug}-{generate_id()[:8]}"
 
     async def _sync_rag_document(self, page: WikiPage, *, tenant_ctx: TenantContext) -> str | None:
-        """Create or update a rag_document for a wiki page (source_type=wiki)."""
+        """Create or update a rag_document + chunks for a wiki page (source_type=wiki).
+
+        Plan 010: page write → rag_documents → chunk → embed via the same
+        pipeline as paste RAG. Empty body skips indexing.
+        """
         if page.status == "deprecated":
             if page.document_id:
                 await self.rag_repo.delete_document(
@@ -196,6 +203,23 @@ class WikiService:
             await self.rag_repo.delete_document(
                 page.document_id, tenant_id=tenant_ctx.tenant_id, user_id=tenant_ctx.user_id
             )
+            page.document_id = None
+
+        content = (page.body_md or "").strip()
+        if not content:
+            await self.db.flush()
+            return None
+
+        chunker = split_markdown if looks_like_markdown(content) else split_text
+        chunks = chunker(
+            content,
+            chunk_size=settings.ai.rag_chunk_size,
+            overlap=settings.ai.rag_chunk_overlap,
+            max_chunks=settings.ai.rag_max_chunks_per_document,
+        )
+        if not chunks:
+            await self.db.flush()
+            return None
 
         doc = await self.rag_repo.create_document(
             tenant_id=tenant_ctx.tenant_id,
@@ -203,11 +227,92 @@ class WikiService:
             title=page.title,
             source_type=RagSourceType.WIKI.value,
             source_ref=page.id,
-            status="ready",
+            status="pending",
         )
         page.document_id = doc.id
         await self.db.flush()
+
+        try:
+            await self._index_page_chunks(
+                document_id=doc.id,
+                tenant_ctx=tenant_ctx,
+                chunks=chunks,
+            )
+        except Exception as exc:
+            logger.exception("Wiki RAG index failed for page %s", page.id)
+            try:
+                await self.rag_repo.set_document_status(
+                    doc.id, status="failed", error=str(exc)[:2000]
+                )
+            except Exception:
+                logger.exception("Could not mark rag document %s as failed", doc.id)
         return doc.id
+
+    async def _index_page_chunks(
+        self,
+        *,
+        document_id: str,
+        tenant_ctx: TenantContext,
+        chunks: list[str],
+    ) -> None:
+        """Embed + store chunks for a wiki-backed rag_document (no commit)."""
+        await RagService(self.db).store_chunks(
+            document_id=document_id,
+            tenant_id=tenant_ctx.tenant_id,
+            user_id=tenant_ctx.user_id,
+            chunks=chunks,
+        )
+
+    async def reindex_all(
+        self,
+        *,
+        tenant_id: str | None = None,
+        user_id: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, int]:
+        """Re-chunk + re-embed active wiki pages (backfill / repair empty docs)."""
+        from sqlalchemy import select
+
+        from app.modules.rag.db_models import RagDocument
+
+        stmt = select(WikiPage).where(WikiPage.status == "active")
+        if tenant_id:
+            stmt = stmt.where(WikiPage.tenant_id == tenant_id)
+        if user_id:
+            stmt = stmt.where(WikiPage.user_id == user_id)
+        stmt = stmt.order_by(WikiPage.created_at.asc())
+        if limit is not None:
+            stmt = stmt.limit(limit)
+
+        result = await self.db.execute(stmt)
+        pages = list(result.scalars().all())
+        ok = 0
+        failed = 0
+        skipped = 0
+        for page in pages:
+            tenant_ctx = TenantContext(
+                tenant_id=page.tenant_id,
+                user_id=page.user_id,
+                tenant_role="member",
+            )
+            try:
+                doc_id = await self._sync_rag_document(page, tenant_ctx=tenant_ctx)
+                await self.db.commit()
+            except Exception:
+                logger.exception("Wiki reindex failed for page %s", page.id)
+                await self.db.rollback()
+                failed += 1
+                continue
+
+            if doc_id is None:
+                skipped += 1
+                continue
+            doc = await self.db.get(RagDocument, doc_id)
+            if doc is not None and doc.status == "failed":
+                failed += 1
+            else:
+                ok += 1
+        return {"ok": ok, "failed": failed, "skipped": skipped, "total": len(pages)}
 
     async def _rebuild_page_links(self, page: WikiPage) -> list[WikiLink]:
         """Parse [[wikilinks]] from page body and rebuild edges."""

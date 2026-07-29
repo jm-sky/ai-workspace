@@ -17,6 +17,10 @@ async def create_embedding_service(
     enforce_quota: bool = True,
 ) -> EmbeddingService:
     """Build an :class:`EmbeddingService` that records usage for the tenant."""
+    # usage_events.agent_run_id FK needs AgentRunDB registered in metadata
+    # (CLI / isolated scripts may not have imported the agent package yet).
+    import app.modules.agent.db_models  # noqa: F401
+
     if enforce_quota:
         await UsageGuard(db).assert_embedding_allowed(tenant_ctx)
 
