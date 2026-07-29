@@ -2,6 +2,23 @@ export type WikiPageStatus = 'active' | 'deprecated'
 
 export type WikiFolder = 'raw' | 'inbox' | 'entities' | 'concepts' | 'summaries' | 'meta'
 
+export type WikiSortKey =
+  | 'updated_desc'
+  | 'updated_asc'
+  | 'created_desc'
+  | 'created_asc'
+  | 'title_asc'
+  | 'title_desc'
+
+export const WIKI_SORT_KEYS: WikiSortKey[] = [
+  'updated_desc',
+  'updated_asc',
+  'created_desc',
+  'created_asc',
+  'title_asc',
+  'title_desc',
+]
+
 export interface IWikiPage {
   id: string
   folder: WikiFolder
@@ -23,6 +40,11 @@ export interface IWikiLink {
   toPageId?: string | null
   toSlug: string
   linkText?: string | null
+  fromSlug?: string | null
+  fromTitle?: string | null
+  fromFolder?: string | null
+  toTitle?: string | null
+  toFolder?: string | null
 }
 
 export interface IWikiPageDetail extends IWikiPage {
