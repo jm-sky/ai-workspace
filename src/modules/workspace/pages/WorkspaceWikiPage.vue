@@ -1,22 +1,26 @@
 <script setup lang="ts">
+import { useLocalStorage } from '@vueuse/core'
 import {
-  AlertTriangle,
   BookOpen,
-  ChevronRight,
   FileText,
   FolderOpen,
   Info,
   Link2,
   Network,
+  PanelLeft,
+  PanelLeftClose,
   Plus,
   Trash2,
 } from 'lucide-vue-next'
+import {
+  SplitterGroup,
+  SplitterPanel,
+  SplitterResizeHandle,
+} from 'reka-ui'
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -46,6 +50,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import ChatLayout from '@/layouts/ChatLayout.vue'
+import WikiPageDetail from '@/modules/workspace/components/WikiPageDetail.vue'
+import WikiPageList from '@/modules/workspace/components/WikiPageList.vue'
 import { useWikiBrowser } from '@/modules/workspace/composables/useWikiBrowser'
 import { WIKI_SORT_KEYS, type WikiFolder } from '@/modules/workspace/types/wiki'
 
@@ -98,12 +104,19 @@ const ingestContent = ref('')
 const showIngestDialog = ref(false)
 const showNewPageDialog = ref(false)
 const showLinkPicker = ref(false)
+const showDetailDialog = ref(false)
 const linkSearch = ref('')
 const bodyTextareaRef = ref<{ $el: HTMLTextAreaElement } | null>(null)
 const confirmDeprecateId = ref<string | null>(null)
 const showConfirmBulkDelete = ref(false)
 const showConfirmPurge = ref(false)
 const purgeConfirmText = ref('')
+const foldersCollapsed = useLocalStorage('wiki.foldersCollapsed', false)
+
+const activeFolderMeta = computed(() => {
+  if (activeFolder.value === null) return null
+  return FOLDERS.find((f) => f.key === activeFolder.value) ?? null
+})
 
 const filteredForPicker = computed(() => {
   const q = linkSearch.value.trim().toLowerCase()
@@ -168,6 +181,7 @@ const handleAddPage = async () => {
 const handleDelete = async (pageId: string) => {
   try {
     await removePage(pageId)
+    showDetailDialog.value = false
     toast.success(t('workspace.wiki.deleted'))
   } catch {
     toast.error(t('workspace.wiki.deleteFailed'))
@@ -219,6 +233,7 @@ const handlePurge = async () => {
   purgeConfirmText.value = ''
   try {
     const count = await doPurge()
+    showDetailDialog.value = false
     toast.success(t('workspace.wiki.purged', { count }))
   } catch {
     toast.error(t('workspace.wiki.purgeFailed'))
@@ -231,13 +246,6 @@ const handleTabChange = (tab: string | number) => {
   if (next === 'graph') {
     void loadGraph()
   }
-}
-
-const formatDate = (iso: string) => new Date(iso).toLocaleString()
-
-const statusVariant = (status: string) => {
-  if (status === 'active') return 'success'
-  return 'secondary'
 }
 
 const svgRef = ref<SVGSVGElement | null>(null)
@@ -359,8 +367,93 @@ const svgRef = ref<SVGSVGElement | null>(null)
           value="pages"
           class="flex min-h-0 flex-1 gap-3 overflow-hidden"
         >
-          <!-- Folder tree -->
-          <div class="w-40 shrink-0 space-y-1 overflow-y-auto rounded-xl border border-hairline bg-surface-raised p-2">
+          <!-- Folder tree (collapsed) -->
+          <div
+            v-if="foldersCollapsed"
+            class="flex w-9 shrink-0 flex-col items-center gap-1 rounded-xl border border-hairline bg-surface-raised p-1"
+          >
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    class="size-7"
+                    :aria-label="t('workspace.wiki.expandFolders')"
+                    @click="foldersCollapsed = false"
+                  >
+                    <PanelLeft class="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {{ t('workspace.wiki.expandFolders') }}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <button
+                    type="button"
+                    class="flex size-7 items-center justify-center rounded-md transition-colors hover:bg-muted"
+                    :class="{ 'bg-muted': activeFolder === null }"
+                    @click="handleFolderClick(null)"
+                  >
+                    <FolderOpen class="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {{ t('workspace.wiki.allFolders') }}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider
+              v-for="f in FOLDERS"
+              :key="f.key"
+            >
+              <Tooltip>
+                <TooltipTrigger as-child>
+                  <button
+                    type="button"
+                    class="flex size-7 items-center justify-center rounded-md transition-colors hover:bg-muted"
+                    :class="{ 'bg-muted': activeFolder === f.key }"
+                    @click="handleFolderClick(f.key)"
+                  >
+                    <component :is="f.icon" class="size-3.5" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  {{ t(`workspace.wiki.folders.${f.key}`) }}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+
+          <!-- Folder tree (expanded) -->
+          <div
+            v-else
+            class="flex w-40 shrink-0 flex-col gap-1 overflow-y-auto rounded-xl border border-hairline bg-surface-raised p-2"
+          >
+            <div class="mb-1 flex items-center justify-end">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="size-6"
+                      :aria-label="t('workspace.wiki.collapseFolders')"
+                      @click="foldersCollapsed = true"
+                    >
+                      <PanelLeftClose class="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    {{ t('workspace.wiki.collapseFolders') }}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <button
               class="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors hover:bg-muted"
               :class="{ 'bg-muted font-medium': activeFolder === null }"
@@ -395,6 +488,26 @@ const svgRef = ref<SVGSVGElement | null>(null)
           <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
             <!-- Search + sort + selection toolbar -->
             <div class="flex shrink-0 items-center gap-2">
+              <TooltipProvider v-if="foldersCollapsed">
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="size-8 shrink-0"
+                      :aria-label="t('workspace.wiki.expandFolders')"
+                      @click="foldersCollapsed = false"
+                    >
+                      <PanelLeft class="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {{ activeFolderMeta
+                      ? t(`workspace.wiki.folders.${activeFolderMeta.key}`)
+                      : t('workspace.wiki.expandFolders') }}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <Input
                 v-model="searchQuery"
                 :placeholder="t('workspace.wiki.searchPlaceholder')"
@@ -445,220 +558,78 @@ const svgRef = ref<SVGSVGElement | null>(null)
               </div>
             </div>
 
-            <div class="flex min-h-0 flex-1 gap-3 overflow-hidden">
-              <!-- List -->
-              <div class="min-h-0 flex-1 overflow-y-auto rounded-xl border border-hairline bg-surface-canvas">
-                <p
-                  v-if="isLoading"
-                  class="p-4 text-sm text-muted-foreground"
-                >
-                  {{ t('workspace.wiki.loading') }}
-                </p>
-                <p
-                  v-else-if="filteredPages.length === 0"
-                  class="p-4 text-sm text-muted-foreground"
-                >
-                  {{ t('workspace.wiki.empty') }}
-                </p>
-                <template v-else>
-                  <!-- Select all header -->
-                  <div class="flex items-center gap-2 border-b border-hairline px-3 py-2">
-                    <Checkbox
-                      :model-value="allFilteredSelected"
-                      @update:model-value="allFilteredSelected ? clearSelection() : selectAll()"
-                    />
-                    <span class="text-xs text-muted-foreground">
-                      {{ t('workspace.wiki.selectAll') }}
-                    </span>
-                  </div>
-                  <ul class="divide-y divide-hairline">
-                    <li
-                      v-for="page in filteredPages"
-                      :key="page.id"
-                      class="flex cursor-pointer items-start gap-2 p-3 transition-colors hover:bg-muted/50"
-                      :class="{ 'bg-muted/30': selectedPage?.id === page.id }"
-                    >
-                      <Checkbox
-                        :model-value="selectedIds.has(page.id)"
-                        class="mt-0.5 shrink-0"
-                        @update:model-value="toggleSelect(page.id)"
-                        @click.stop
-                      />
-                      <div
-                        class="min-w-0 flex-1"
-                        @click="selectPage(page.id)"
-                      >
-                        <p class="truncate text-sm font-medium">
-                          {{ page.title }}
-                        </p>
-                        <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <Badge
-                            variant="outline"
-                            class="text-[10px]"
-                          >
-                            {{ page.folder }}
-                          </Badge>
-                          <Badge
-                            v-if="page.status === 'deprecated'"
-                            variant="secondary"
-                            class="text-[10px]"
-                          >
-                            {{ t('workspace.wiki.statusDeprecated') }}
-                          </Badge>
-                          <span>{{ formatDate(page.updatedAt) }}</span>
-                        </div>
-                      </div>
-                      <ChevronRight class="mt-1 size-3.5 shrink-0 text-muted-foreground" />
-                    </li>
-                  </ul>
-                </template>
-              </div>
-
-              <!-- Detail panel -->
-              <div
-                v-if="selectedPage"
-                class="flex w-96 shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border border-hairline bg-surface-raised p-4"
-              >
-                <div class="flex items-start justify-between">
-                  <div>
-                    <h2 class="text-sm font-semibold">
-                      {{ selectedPage.title }}
-                    </h2>
-                    <div class="flex gap-1.5 text-xs text-muted-foreground">
-                      <Badge variant="outline">
-                        {{ selectedPage.folder }}
-                      </Badge>
-                      <Badge :variant="statusVariant(selectedPage.status)">
-                        {{ selectedPage.status }}
-                      </Badge>
-                      <TooltipProvider v-if="selectedPage.immutable">
-                        <Tooltip>
-                          <TooltipTrigger as-child>
-                            <span class="cursor-default">🔒</span>
-                          </TooltipTrigger>
-                          <TooltipContent>{{ t('workspace.wiki.help.immutable') }}</TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  </div>
-                  <div class="flex gap-1">
-                    <TooltipProvider v-if="!selectedPage.immutable && selectedPage.status === 'active'">
-                      <Tooltip>
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            :aria-label="t('workspace.wiki.deprecate')"
-                            @click="confirmDeprecateId = selectedPage.id"
-                          >
-                            <AlertTriangle class="size-4 text-amber-500" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{{ t('workspace.wiki.help.deprecate') }}</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider v-if="!selectedPage.immutable">
-                      <Tooltip>
-                        <TooltipTrigger as-child>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            :aria-label="t('workspace.wiki.delete')"
-                            @click="handleDelete(selectedPage.id)"
-                          >
-                            <Trash2 class="size-4 text-destructive" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>{{ t('workspace.wiki.help.delete') }}</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                </div>
-
-                <!-- Body preview -->
-                <div class="whitespace-pre-wrap rounded-lg border border-hairline bg-surface-canvas p-3 text-sm">
-                  {{ selectedPage.bodyMd }}
-                </div>
-
-                <!-- Links -->
-                <div v-if="selectedPage.outgoingLinks.length > 0">
-                  <h3 class="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                    <Link2 class="size-3" />
-                    {{ t('workspace.wiki.outgoingLinks') }}
-                  </h3>
-                  <ul class="space-y-0.5">
-                    <li
-                      v-for="link in selectedPage.outgoingLinks"
-                      :key="link.id"
-                      class="text-xs"
-                    >
-                      <button
-                        v-if="link.toPageId"
-                        type="button"
-                        class="text-left text-primary underline-offset-2 hover:underline"
-                        @click="navigateToLinkedPage(link.toPageId, link.toFolder)"
-                      >
-                        [[{{ link.toSlug }}]]
-                        <span
-                          v-if="link.toTitle && link.toTitle !== link.toSlug"
-                          class="text-muted-foreground"
-                        > — {{ link.toTitle }}</span>
-                      </button>
-                      <span
-                        v-else
-                        class="text-primary"
-                      >
-                        [[{{ link.toSlug }}]]
-                      </span>
-                      <Badge
-                        v-if="link.toFolder"
-                        variant="outline"
-                        class="ml-1 text-[10px]"
-                      >
-                        {{ link.toFolder }}
-                      </Badge>
-                      <span
-                        v-if="!link.toPageId"
-                        class="text-destructive"
-                      >(dangling)</span>
-                    </li>
-                  </ul>
-                </div>
-
-                <div v-if="selectedPage.incomingLinks.length > 0">
-                  <h3 class="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                    <Link2 class="size-3" />
-                    {{ t('workspace.wiki.incomingLinks') }}
-                  </h3>
-                  <ul class="space-y-0.5">
-                    <li
-                      v-for="link in selectedPage.incomingLinks"
-                      :key="link.id"
-                      class="text-xs"
-                    >
-                      <button
-                        type="button"
-                        class="text-left text-primary underline-offset-2 hover:underline"
-                        @click="navigateToLinkedPage(link.fromPageId, link.fromFolder)"
-                      >
-                        [[{{ link.fromSlug || link.fromPageId }}]]
-                        <span
-                          v-if="link.fromTitle"
-                          class="text-muted-foreground"
-                        > — {{ link.fromTitle }}</span>
-                      </button>
-                      <Badge
-                        v-if="link.fromFolder"
-                        variant="outline"
-                        class="ml-1 text-[10px]"
-                      >
-                        {{ link.fromFolder }}
-                      </Badge>
-                    </li>
-                  </ul>
-                </div>
-              </div>
+            <!-- List only (no selection) -->
+            <div
+              v-if="!selectedPage"
+              class="min-h-0 flex-1 overflow-hidden"
+            >
+              <WikiPageList
+                :pages="filteredPages"
+                :selected-ids="selectedIds"
+                :is-loading="isLoading"
+                :all-filtered-selected="allFilteredSelected"
+                @select-page="selectPage"
+                @toggle-select="toggleSelect"
+                @select-all="selectAll"
+                @clear-selection="clearSelection"
+              />
             </div>
+
+            <!-- List + resizable detail -->
+            <SplitterGroup
+              v-else
+              id="wiki-list-detail"
+              auto-save-id="wiki-detail-panels"
+              direction="horizontal"
+              class="flex min-h-0 flex-1 overflow-hidden"
+            >
+              <SplitterPanel
+                id="wiki-list"
+                :default-size="60"
+                :min-size="30"
+                :order="1"
+                class="min-h-0 overflow-hidden"
+              >
+                <WikiPageList
+                  :pages="filteredPages"
+                  :selected-ids="selectedIds"
+                  :selected-page-id="selectedPage.id"
+                  :is-loading="isLoading"
+                  :all-filtered-selected="allFilteredSelected"
+                  @select-page="selectPage"
+                  @toggle-select="toggleSelect"
+                  @select-all="selectAll"
+                  @clear-selection="clearSelection"
+                />
+              </SplitterPanel>
+
+              <SplitterResizeHandle
+                id="wiki-list-detail-handle"
+                class="group relative mx-1.5 flex w-1.5 shrink-0 items-center justify-center rounded-full bg-border transition-colors hover:bg-primary/40 data-[state=drag]:bg-primary/50"
+              >
+                <div class="h-8 w-0.5 rounded-full bg-muted-foreground/30 group-hover:bg-primary/60 group-data-[state=drag]:bg-primary" />
+              </SplitterResizeHandle>
+
+              <SplitterPanel
+                id="wiki-detail"
+                :default-size="40"
+                :min-size="25"
+                :max-size="70"
+                :order="2"
+                class="min-h-0 overflow-hidden"
+              >
+                <div class="flex size-full flex-col overflow-hidden rounded-xl border border-hairline bg-surface-raised p-4">
+                  <WikiPageDetail
+                    :page="selectedPage"
+                    show-expand
+                    @deprecate="confirmDeprecateId = $event"
+                    @delete="handleDelete"
+                    @expand="showDetailDialog = true"
+                    @navigate-link="(id, folder) => navigateToLinkedPage(id, folder)"
+                  />
+                </div>
+              </SplitterPanel>
+            </SplitterGroup>
           </div>
         </TabsContent>
 
@@ -733,6 +704,31 @@ const svgRef = ref<SVGSVGElement | null>(null)
         {{ t('workspace.wiki.total', { count: total }) }}
       </p>
     </div>
+
+    <!-- Detail expand dialog -->
+    <Dialog
+      :open="showDetailDialog && selectedPage !== null"
+      @update:open="(open) => { if (!open) showDetailDialog = false }"
+    >
+      <DialogContent class="flex h-[85vh] max-w-5xl flex-col gap-0 border-hairline bg-surface-raised p-4 sm:max-w-5xl">
+        <DialogHeader class="sr-only">
+          <DialogTitle>
+            {{ selectedPage?.title }}
+          </DialogTitle>
+        </DialogHeader>
+        <div
+          v-if="selectedPage"
+          class="min-h-0 flex-1 overflow-hidden pr-6 pt-1"
+        >
+          <WikiPageDetail
+            :page="selectedPage"
+            @deprecate="confirmDeprecateId = $event"
+            @delete="handleDelete"
+            @navigate-link="(id, folder) => navigateToLinkedPage(id, folder)"
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
 
     <!-- New page dialog -->
     <Dialog

@@ -202,6 +202,9 @@ export const workspaceEn = {
       purgeConfirmLabel: 'Type PURGE to confirm',
       outgoingLinks: 'Outgoing links',
       incomingLinks: 'Incoming links',
+      expandDetail: 'Open in dialog',
+      collapseFolders: 'Collapse folders',
+      expandFolders: 'Expand folders',
       graphLoading: 'Loading graph…',
       graphEmpty: 'No pages to display in graph',
       help: {

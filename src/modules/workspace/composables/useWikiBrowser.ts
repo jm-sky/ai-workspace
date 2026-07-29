@@ -23,16 +23,16 @@ import type {
 
 function compareWikiPages(a: IWikiPage, b: IWikiPage, sortBy: WikiSortKey): number {
   switch (sortBy) {
-    case 'updated_asc':
-      return a.updatedAt.localeCompare(b.updatedAt)
-    case 'created_desc':
-      return b.createdAt.localeCompare(a.createdAt)
     case 'created_asc':
       return a.createdAt.localeCompare(b.createdAt)
+    case 'created_desc':
+      return b.createdAt.localeCompare(a.createdAt)
     case 'title_asc':
       return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
     case 'title_desc':
       return b.title.localeCompare(a.title, undefined, { sensitivity: 'base' })
+    case 'updated_asc':
+      return a.updatedAt.localeCompare(b.updatedAt)
     case 'updated_desc':
     default:
       return b.updatedAt.localeCompare(a.updatedAt)
