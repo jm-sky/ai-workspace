@@ -81,6 +81,12 @@ COMMAND_GROUPS = {
             "reembed": "Re-embed document_chunks behind the current AI_EMBEDDING_VERSION",
         },
     },
+    "billing": {
+        "name": "Billing & Subscriptions",
+        "commands": {
+            "change-plan": "Change a user's subscription plan (free, pro, pro_plus)",
+        },
+    },
 }
 
 # Commands that require arguments (command_path -> list of argument prompts)
