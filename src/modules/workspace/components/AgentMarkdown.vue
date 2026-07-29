@@ -10,12 +10,15 @@ const mdInstance = ref<InstanceType<typeof import('markdown-it').default> | null
 
 onMounted(async () => {
   const MarkdownItModule = await import('markdown-it')
-  mdInstance.value = new MarkdownItModule.default({
+  const md = new MarkdownItModule.default({
     html: false,
     linkify: true,
     typographer: true,
     breaks: true,
   })
+  md.renderer.rules.table_open = () => '<div class="table-wrap"><table>'
+  md.renderer.rules.table_close = () => '</table></div>'
+  mdInstance.value = md
 })
 
 const rendered = computed(() => {
@@ -26,5 +29,8 @@ const rendered = computed(() => {
 
 <template>
   <!-- eslint-disable-next-line vue/no-v-html -->
-  <div class="prose prose-sm dark:prose-invert max-w-none" v-html="rendered" />
+  <div
+    class="agent-md max-w-none text-sm leading-relaxed text-foreground"
+    v-html="rendered"
+  />
 </template>

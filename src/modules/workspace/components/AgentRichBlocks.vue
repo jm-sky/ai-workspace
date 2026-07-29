@@ -23,9 +23,26 @@ const tableRows = (block: IRichBlock): Record<string, unknown>[] => {
 
 const MONO_KEYS = new Set(['id', 'key', 'number', 'type'])
 const STATE_KEYS = new Set(['state', 'status'])
+const QUOTE_KEYS = new Set(['snippet', 'fragment'])
 
 const isMono = (key: string): boolean => MONO_KEYS.has(key.toLowerCase())
 const isState = (key: string): boolean => STATE_KEYS.has(key.toLowerCase())
+const isQuoteKey = (key: string): boolean => QUOTE_KEYS.has(key.toLowerCase())
+
+const cardFields = (block: IRichBlock): [string, unknown][] =>
+  Object.entries(block.data).filter(
+    ([key, value]) => value != null && value !== '' && !isQuoteKey(key),
+  )
+
+const cardQuote = (block: IRichBlock): string | null => {
+  for (const key of QUOTE_KEYS) {
+    const value = block.data[key]
+    if (typeof value === 'string' && value.trim()) {
+      return value
+    }
+  }
+  return null
+}
 
 const pillClass = (value: unknown): string => {
   const v = String(value ?? '').toLowerCase()
@@ -53,8 +70,11 @@ const pillClass = (value: unknown): string => {
           {{ block.title }}
         </h3>
         <dl class="grid gap-2 text-sm">
-          <template v-for="(value, key) in block.data" :key="key">
-            <div v-if="value != null && value !== ''" class="flex gap-2">
+          <template
+            v-for="([key, value]) in cardFields(block)"
+            :key="key"
+          >
+            <div class="flex gap-2">
               <dt class="w-24 shrink-0 capitalize text-muted-foreground">
                 {{ key }}
               </dt>
@@ -82,6 +102,12 @@ const pillClass = (value: unknown): string => {
             </div>
           </template>
         </dl>
+        <blockquote
+          v-if="cardQuote(block)"
+          class="mt-3 border-l-2 border-hairline pl-3 text-sm italic leading-relaxed text-muted-foreground"
+        >
+          {{ cardQuote(block) }}
+        </blockquote>
       </div>
 
       <div

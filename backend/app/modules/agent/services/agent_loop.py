@@ -376,10 +376,90 @@ def _build_blocks_from_trace(
     else:
         blocks.extend(_github_workspace_blocks(steps_trace))
 
+    blocks.extend(_gmail_blocks(steps_trace))
     blocks.extend(_chart_blocks(steps_trace))
     blocks.extend(_sources_blocks(steps_trace))
 
     return blocks
+
+
+_GMAIL_SNIPPET_MAX = 280
+_GMAIL_CARD_MAX = 3
+_GMAIL_TABLE_ROWS_MAX = 10
+
+
+def _gmail_snippet(text: str | None) -> str | None:
+    if not text:
+        return None
+    cleaned = " ".join(str(text).split())
+    if not cleaned:
+        return None
+    if len(cleaned) <= _GMAIL_SNIPPET_MAX:
+        return cleaned
+    return cleaned[: _GMAIL_SNIPPET_MAX - 1].rstrip() + "…"
+
+
+def _gmail_message_card(message: dict[str, Any]) -> dict[str, Any]:
+    labels = message.get("labelIds") or []
+    labels_str = ", ".join(str(label) for label in labels) if labels else None
+    return {
+        "type": "card",
+        "title": message.get("subject") or "Email",
+        "data": {
+            "from": message.get("from"),
+            "to": message.get("to"),
+            "date": message.get("date"),
+            "labels": labels_str,
+            "snippet": _gmail_snippet(message.get("snippet")),
+        },
+    }
+
+
+def _gmail_blocks(steps_trace: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build card/table blocks from Gmail tool results (same pattern as GitHub)."""
+    cards: list[dict[str, Any]] = []
+    list_messages: list[dict[str, Any]] = []
+
+    for step in steps_trace:
+        if step.get("stepType") != "tool_result":
+            continue
+        name = step.get("name")
+        output = step.get("outputData") or {}
+        if "error" in output:
+            continue
+
+        if name == "gmail_get_message":
+            message = output.get("message")
+            if isinstance(message, dict):
+                cards.append(_gmail_message_card(message))
+        elif name in ("gmail_search_messages", "gmail_list_messages"):
+            messages = output.get("messages")
+            if isinstance(messages, list) and messages:
+                list_messages = [m for m in messages if isinstance(m, dict)]
+
+    if cards:
+        return cards[:_GMAIL_CARD_MAX]
+
+    if not list_messages:
+        return []
+
+    return [
+        {
+            "type": "table",
+            "title": "Emails",
+            "data": {
+                "columns": ["from", "subject", "date"],
+                "rows": [
+                    {
+                        "from": message.get("from"),
+                        "subject": message.get("subject"),
+                        "date": message.get("date"),
+                    }
+                    for message in list_messages[:_GMAIL_TABLE_ROWS_MAX]
+                ],
+            },
+        }
+    ]
 
 
 def _normalize_source_url(url: str) -> str:

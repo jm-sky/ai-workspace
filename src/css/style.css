@@ -208,6 +208,91 @@
   .hover-veil:hover {
     background-color: var(--hover-veil);
   }
+
+  /* Chat assistant markdown — real styles (prose plugin not installed). */
+  .agent-md > :first-child {
+    @apply mt-0;
+  }
+
+  .agent-md > :last-child {
+    @apply mb-0;
+  }
+
+  .agent-md p {
+    @apply mb-3;
+  }
+
+  .agent-md a {
+    @apply text-primary underline-offset-2 hover:underline;
+  }
+
+  .agent-md strong {
+    @apply font-semibold text-foreground;
+  }
+
+  .agent-md em {
+    @apply italic;
+  }
+
+  .agent-md ul {
+    @apply mb-3 list-disc space-y-1 pl-5;
+  }
+
+  .agent-md ol {
+    @apply mb-3 list-decimal space-y-1 pl-5;
+  }
+
+  .agent-md li {
+    @apply leading-relaxed;
+  }
+
+  .agent-md blockquote {
+    @apply mb-3 border-l-2 border-hairline pl-3 italic text-muted-foreground;
+  }
+
+  .agent-md code {
+    @apply rounded bg-muted px-1 py-0.5 font-mono text-xs;
+  }
+
+  .agent-md pre {
+    @apply mb-3 overflow-x-auto rounded-lg border border-hairline bg-muted/40 p-3;
+  }
+
+  .agent-md pre code {
+    @apply bg-transparent p-0;
+  }
+
+  .agent-md .table-wrap {
+    @apply mb-3 overflow-x-auto rounded-xl border border-hairline;
+  }
+
+  .agent-md table {
+    @apply w-full border-collapse text-sm;
+  }
+
+  .agent-md thead {
+    @apply bg-surface-raised/60 text-muted-foreground;
+  }
+
+  .agent-md th {
+    @apply border-b border-hairline p-2 text-left font-medium;
+  }
+
+  .agent-md td {
+    @apply border-b border-hairline p-2 align-top;
+  }
+
+  .agent-md tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .agent-md .table-wrap table {
+    @apply mb-0 border-0;
+  }
+
+  .agent-md hr {
+    @apply my-4 border-hairline;
+  }
 }
 
 /* Hide reCAPTCHA badge (required notice is shown in footer) */

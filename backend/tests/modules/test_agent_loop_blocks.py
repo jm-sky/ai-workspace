@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.modules.agent.services.agent_loop import (
     _build_blocks_from_trace,
     _chart_blocks,
+    _gmail_blocks,
     _harvest_url_citations,
     _openrouter_web_tools,
     _sources_blocks,
@@ -83,6 +84,135 @@ def test_build_blocks_from_trace_appends_chart_after_agent_specific_blocks():
     blocks = _build_blocks_from_trace(steps, "markdown", agent_key="github-workspace")
 
     assert [b["type"] for b in blocks] == ["card", "chart"]
+
+
+def test_gmail_blocks_get_message_builds_card():
+    steps = [
+        _tool_result_step(
+            "gmail_get_message",
+            {
+                "message": {
+                    "from": "a@example.com",
+                    "to": "b@example.com",
+                    "subject": "Hello",
+                    "date": "2026-07-25T07:22:00+02:00",
+                    "labelIds": ["INBOX", "CATEGORY_PERSONAL"],
+                    "snippet": "Hi there, we are hiring.",
+                }
+            },
+        )
+    ]
+
+    blocks = _gmail_blocks(steps)
+
+    assert len(blocks) == 1
+    assert blocks[0]["type"] == "card"
+    assert blocks[0]["title"] == "Hello"
+    assert blocks[0]["data"]["from"] == "a@example.com"
+    assert blocks[0]["data"]["to"] == "b@example.com"
+    assert blocks[0]["data"]["labels"] == "INBOX, CATEGORY_PERSONAL"
+    assert blocks[0]["data"]["snippet"] == "Hi there, we are hiring."
+
+
+def test_gmail_blocks_search_only_builds_table():
+    steps = [
+        _tool_result_step(
+            "gmail_search_messages",
+            {
+                "messages": [
+                    {
+                        "from": "a@example.com",
+                        "subject": "One",
+                        "date": "2026-07-25",
+                    },
+                    {
+                        "from": "c@example.com",
+                        "subject": "Two",
+                        "date": "2026-07-24",
+                    },
+                ]
+            },
+        )
+    ]
+
+    blocks = _gmail_blocks(steps)
+
+    assert len(blocks) == 1
+    assert blocks[0]["type"] == "table"
+    assert blocks[0]["title"] == "Emails"
+    assert blocks[0]["data"]["columns"] == ["from", "subject", "date"]
+    assert len(blocks[0]["data"]["rows"]) == 2
+    assert blocks[0]["data"]["rows"][0]["subject"] == "One"
+
+
+def test_gmail_blocks_search_plus_get_returns_only_cards():
+    steps = [
+        _tool_result_step(
+            "gmail_search_messages",
+            {
+                "messages": [
+                    {"from": "a@example.com", "subject": "One", "date": "2026-07-25"},
+                ]
+            },
+        ),
+        _tool_result_step(
+            "gmail_get_message",
+            {
+                "message": {
+                    "from": "a@example.com",
+                    "to": "me@example.com",
+                    "subject": "One",
+                    "date": "2026-07-25",
+                    "snippet": "Body preview",
+                }
+            },
+        ),
+    ]
+
+    blocks = _gmail_blocks(steps)
+
+    assert len(blocks) == 1
+    assert blocks[0]["type"] == "card"
+    assert blocks[0]["title"] == "One"
+
+
+def test_gmail_blocks_ignores_error_steps():
+    steps = [
+        _tool_result_step("gmail_get_message", {"error": "boom", "message": {"subject": "Nope"}}),
+        _tool_result_step("gmail_search_messages", {"error": "nope", "messages": [{"subject": "X"}]}),
+    ]
+
+    assert _gmail_blocks(steps) == []
+
+
+def test_gmail_blocks_truncates_long_snippet():
+    long_snippet = "x" * 400
+    steps = [
+        _tool_result_step(
+            "gmail_get_message",
+            {"message": {"subject": "Long", "snippet": long_snippet}},
+        )
+    ]
+
+    blocks = _gmail_blocks(steps)
+
+    assert blocks[0]["data"]["snippet"] is not None
+    assert len(blocks[0]["data"]["snippet"]) <= 280
+    assert blocks[0]["data"]["snippet"].endswith("…")
+
+
+def test_build_blocks_from_trace_includes_gmail_cards():
+    steps = [
+        _tool_result_step(
+            "gmail_get_message",
+            {"message": {"subject": "Offer", "from": "hr@example.com", "snippet": "Hi"}},
+        )
+    ]
+
+    blocks = _build_blocks_from_trace(steps, "found it", agent_key="github-workspace")
+
+    assert [block["type"] for block in blocks] == ["card"]
+    assert blocks[0]["title"] == "Offer"
 
 
 def test_sources_block_dedupes_and_renumbers():
