@@ -1,5 +1,10 @@
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 import { apiClient } from '@/shared/services/apiClient'
+import {
+  CSRF_HEADER_NAME,
+  ensureCsrfToken,
+  getCsrfToken,
+} from '@/shared/services/csrf'
 import type {
   IAgentAdminListResponse,
   IAgentChatRequest,
@@ -61,12 +66,18 @@ export async function streamAgentChat(
   },
 ): Promise<void> {
   const token = useAuthStore().token
+  let csrfToken = getCsrfToken()
+  if (!csrfToken) {
+    csrfToken = await ensureCsrfToken()
+  }
+
   const response = await fetch(`${API_BASE}/agent/chat/stream`, {
     method: 'POST',
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
     },
     body: JSON.stringify({
       message: request.message,
