@@ -23,6 +23,8 @@ class WikiIngestTool(AgentTool):
             description=(
                 "Ingest source content (article, doc, notes) into the Second Brain wiki. "
                 "Creates an immutable Raw page, a Summary, and rippled Entity/Concept pages. "
+                "Merges into existing active entity/concept pages on slug collision and "
+                "auto-wikilinks known pages. "
                 "Use for substantial source material — for short facts, use memory_save instead."
             ),
             parameters={
@@ -64,6 +66,8 @@ class WikiIngestTool(AgentTool):
             "summaryPageId": result.summaryPageId,
             "rippledPages": result.rippledPages,
             "truncated": result.truncated,
+            "mergedPages": result.mergedPages,
+            "autoLinksApplied": result.autoLinksApplied,
         }
 
 

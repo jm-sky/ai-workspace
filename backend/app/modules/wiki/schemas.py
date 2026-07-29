@@ -70,6 +70,8 @@ class WikiIngestResponse(BaseModel):
     summaryPageId: str
     rippledPages: list[str]
     truncated: bool
+    mergedPages: list[str] = Field(default_factory=list)
+    autoLinksApplied: int = 0
 
 
 class WikiGraphNode(BaseModel):

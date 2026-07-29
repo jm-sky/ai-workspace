@@ -14,6 +14,7 @@ from app.modules.rag.repositories import RagRepository
 from app.modules.rag.services.rag_service import RagService
 from app.modules.rag.types import RagSourceType
 from app.modules.tenants.service import TenantContext
+from app.modules.wiki.autolink import LinkTarget, append_ingest_section, auto_wikilink_body
 from app.modules.wiki.db_models import WikiLink, WikiPage
 from app.modules.wiki.links import parse_wikilinks
 from app.modules.wiki.repositories import _UNSET, WikiRepository
@@ -33,6 +34,20 @@ from app.modules.wiki.types import WikiFolder
 logger = logging.getLogger(__name__)
 
 RIPPLE_MAX_PAGES = 15
+AUTO_LINK_FOLDERS = (
+    WikiFolder.ENTITIES.value,
+    WikiFolder.CONCEPTS.value,
+    WikiFolder.SUMMARIES.value,
+)
+# Prefer entities when the same slug exists in multiple catalog folders.
+_FOLDER_LINK_PRIORITY = {
+    WikiFolder.ENTITIES.value: 0,
+    WikiFolder.CONCEPTS.value: 1,
+    WikiFolder.SUMMARIES.value: 2,
+}
+AUTO_LINK_MAX = 20
+AUTO_LINK_MIN_LEN = 4
+AUTO_LINK_CATALOG_LIMIT = 2000
 
 
 def _slugify(text: str) -> str:
@@ -100,7 +115,7 @@ def _heuristic_extract_entities(content: str, max_items: int = 8) -> list[tuple[
             end_line = content[:heading_matches[i + 1].start()].count("\n")
         else:
             end_line = len(lines)
-        section_lines = [l for l in lines[start_line:end_line] if l.strip()]
+        section_lines = [line for line in lines[start_line:end_line] if line.strip()]
         section_body = "\n".join(section_lines[:6])  # max 6 lines of context
 
         body = f"{section_body}" if section_body else f"Sekcja z dokumentu: {title}"
@@ -376,6 +391,54 @@ class WikiService:
         await self.db.commit()
         return _page_to_response(page)
 
+    async def _finalize_page_body(
+        self,
+        page: WikiPage,
+        *,
+        tenant_ctx: TenantContext,
+        body_md: str | None = None,
+    ) -> None:
+        """Optionally update body, then sync RAG and rebuild outgoing links."""
+        if body_md is not None and body_md != page.body_md:
+            await self.repo.update_page(page, body_md=body_md)
+        await self._sync_rag_document(page, tenant_ctx=tenant_ctx)
+        await self._rebuild_page_links(page)
+
+    async def _build_autolink_targets(
+        self,
+        *,
+        tenant_ctx: TenantContext,
+        extra_pages: list[WikiPage],
+    ) -> list[LinkTarget]:
+        """Load active entities/concepts/summaries; dedupe slug with folder priority."""
+        rows = await self.repo.list_link_targets(
+            tenant_id=tenant_ctx.tenant_id,
+            user_id=tenant_ctx.user_id,
+            folders=list(AUTO_LINK_FOLDERS),
+            status="active",
+            limit=AUTO_LINK_CATALOG_LIMIT,
+        )
+        by_slug: dict[str, tuple[int, LinkTarget]] = {}
+        for slug, title, folder in rows:
+            priority = _FOLDER_LINK_PRIORITY.get(folder, 99)
+            key = slug.lower()
+            existing = by_slug.get(key)
+            if existing is None or priority < existing[0]:
+                by_slug[key] = (priority, LinkTarget(slug=slug, title=title))
+
+        for page in extra_pages:
+            if page.folder not in AUTO_LINK_FOLDERS:
+                continue
+            if page.status != "active":
+                continue
+            priority = _FOLDER_LINK_PRIORITY.get(page.folder, 99)
+            key = page.slug.lower()
+            existing = by_slug.get(key)
+            if existing is None or priority < existing[0]:
+                by_slug[key] = (priority, LinkTarget(slug=page.slug, title=page.title))
+
+        return [t for _, t in by_slug.values()]
+
     async def ingest(
         self,
         *,
@@ -387,6 +450,8 @@ class WikiService:
         """Librarian ingest: Raw → Summary → ripple Entities/Concepts → Log entry.
 
         Uses deterministic heuristic extractor (no LLM required).
+        Merges into existing active entity/concept pages on same-folder slug collision.
+        Auto-wikilinks known pages on summary + rippled bodies.
         """
         await self.ensure_seed(tenant_ctx=tenant_ctx)
 
@@ -395,6 +460,7 @@ class WikiService:
             first_h1 = re.search(r"^#\s+(.+)", content, re.MULTILINE)
             title = first_h1.group(1).strip() if first_h1 else None
         ingest_title = title or "Untitled ingest"
+        ingest_ts = datetime.now(UTC).isoformat()
 
         raw_page = await self.repo.create_page(
             tenant_id=tenant_ctx.tenant_id,
@@ -434,26 +500,46 @@ class WikiService:
             body_md=summary_body,
             source_url=source_url,
         )
-        await self._sync_rag_document(summary_page, tenant_ctx=tenant_ctx)
-        await self._rebuild_page_links(summary_page)
 
         # Over-fetch so RIPPLE_MAX_PAGES is the real gate, not the extractor cap.
         entities = _heuristic_extract_entities(content, max_items=RIPPLE_MAX_PAGES + 5)
         rippled_ids: list[str] = []
+        merged_ids: list[str] = []
+        rippled_pages: list[WikiPage] = []
         truncated = False
-        total_pages_count = 2
+        created_rippled = 0
+        # raw + summary always count toward the page budget
+        max_created_rippled = max(0, RIPPLE_MAX_PAGES - 2)
 
         for entity_title, entity_body, folder_hint in entities:
-            if total_pages_count >= RIPPLE_MAX_PAGES:
+            folder = WikiFolder.CONCEPTS.value if folder_hint == "concepts" else WikiFolder.ENTITIES.value
+            entity_slug = _slugify(entity_title) or "unnamed"
+
+            existing = await self.repo.get_page_by_slug(
+                tenant_id=tenant_ctx.tenant_id,
+                user_id=tenant_ctx.user_id,
+                folder=folder,
+                slug=entity_slug,
+            )
+            if existing is not None and existing.status == "active":
+                new_body = append_ingest_section(
+                    existing.body_md,
+                    timestamp=ingest_ts,
+                    ingest_title=ingest_title,
+                    entity_body=entity_body,
+                    raw_slug=raw_page.slug,
+                )
+                if new_body is not None:
+                    await self.repo.update_page(existing, body_md=new_body)
+                if existing.id not in rippled_ids:
+                    rippled_ids.append(existing.id)
+                    merged_ids.append(existing.id)
+                    rippled_pages.append(existing)
+                continue
+
+            if created_rippled >= max_created_rippled:
                 truncated = True
                 break
-            total_pages_count += 1
-
-            folder = WikiFolder.CONCEPTS.value if folder_hint == "concepts" else WikiFolder.ENTITIES.value
-
-            entity_slug = _slugify(entity_title)
-            if not entity_slug:
-                entity_slug = "unnamed"
 
             entity_page = await self.repo.create_page(
                 tenant_id=tenant_ctx.tenant_id,
@@ -468,9 +554,39 @@ class WikiService:
                 title=entity_title,
                 body_md=f"# {entity_title}\n\n{entity_body}\n\nSource: [[{raw_page.slug}|raw]]",
             )
-            await self._sync_rag_document(entity_page, tenant_ctx=tenant_ctx)
-            await self._rebuild_page_links(entity_page)
+            created_rippled += 1
             rippled_ids.append(entity_page.id)
+            rippled_pages.append(entity_page)
+
+        # Auto-wikilink summary + rippled pages against known catalog (+ this run).
+        targets = await self._build_autolink_targets(
+            tenant_ctx=tenant_ctx,
+            extra_pages=[summary_page, *rippled_pages],
+        )
+        auto_links_applied = 0
+
+        summary_linked, n = auto_wikilink_body(
+            summary_page.body_md,
+            targets,
+            self_slug=summary_page.slug,
+            min_len=AUTO_LINK_MIN_LEN,
+            max_links=AUTO_LINK_MAX,
+        )
+        auto_links_applied += n
+        await self._finalize_page_body(
+            summary_page, tenant_ctx=tenant_ctx, body_md=summary_linked
+        )
+
+        for page in rippled_pages:
+            linked, n = auto_wikilink_body(
+                page.body_md,
+                targets,
+                self_slug=page.slug,
+                min_len=AUTO_LINK_MIN_LEN,
+                max_links=AUTO_LINK_MAX,
+            )
+            auto_links_applied += n
+            await self._finalize_page_body(page, tenant_ctx=tenant_ctx, body_md=linked)
 
         log_page = await self.repo.get_page_by_slug(
             tenant_id=tenant_ctx.tenant_id,
@@ -479,13 +595,14 @@ class WikiService:
             slug="log",
         )
         if log_page:
-            timestamp = datetime.now(UTC).isoformat()
             trunc_note = " (TRUNCATED — ripple limit reached)" if truncated else ""
+            merged_note = f", merged {len(merged_ids)}" if merged_ids else ""
             log_entry = (
-                f"\n\n## {timestamp} — {ingest_title}{trunc_note}\n"
+                f"\n\n## {ingest_ts} — {ingest_title}{trunc_note}\n"
                 f"- Raw: [[{raw_page.slug}]]\n"
                 f"- Summary: [[{summary_page.slug}]]\n"
-                f"- Rippled: {len(rippled_ids)} pages\n"
+                f"- Rippled: {len(rippled_ids)} pages{merged_note}\n"
+                f"- Auto-links: {auto_links_applied}\n"
             )
             await self.repo.update_page(log_page, body_md=log_page.body_md + log_entry)
             await self._rebuild_page_links(log_page)
@@ -497,6 +614,8 @@ class WikiService:
             summaryPageId=summary_page.id,
             rippledPages=rippled_ids,
             truncated=truncated,
+            mergedPages=merged_ids,
+            autoLinksApplied=auto_links_applied,
         )
 
     async def query(

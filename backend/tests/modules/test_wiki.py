@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.modules.rag.db_models import RagDocument
 from app.modules.tenants.service import TenantContext
 from app.modules.wiki.links import parse_wikilinks
 from app.modules.wiki.services.wiki_service import (
@@ -14,7 +13,6 @@ from app.modules.wiki.services.wiki_service import (
     _heuristic_extract_entities,
     _slugify,
 )
-from app.modules.wiki.types import WikiFolder
 
 
 def _tenant_ctx(tenant_id: str = "tenant-a", user_id: str = "user-a") -> TenantContext:
@@ -96,7 +94,8 @@ def test_slugify_truncates():
 # --- Heuristic extractor ---
 
 def test_heuristic_extract_headings():
-    content = "# First Heading\n\nSome text.\n\n## Second Heading\n\nMore text."
+    # H1 is document title (skipped); H2/H3 become entities.
+    content = "# Doc Title\n\nSome text.\n\n## First Heading\n\nMore.\n\n## Second Heading\n\nMore text."
     items = _heuristic_extract_entities(content)
     assert len(items) >= 2
     assert items[0][0] == "First Heading"
@@ -104,7 +103,7 @@ def test_heuristic_extract_headings():
 
 
 def test_heuristic_extract_max_items():
-    content = "\n".join(f"# Heading {i}" for i in range(20))
+    content = "# Doc\n\n" + "\n".join(f"## Heading {i}" for i in range(20))
     items = _heuristic_extract_entities(content, max_items=5)
     assert len(items) == 5
 
@@ -229,6 +228,23 @@ async def test_wikilinks_rebuild_removes_old_links():
 
 # --- Ingest + ripple ---
 
+def _mock_ingest_repo(service: WikiService, *, fake_create_page, get_by_slug=None):
+    """Shared mocks for ingest tests (seed + ripple + autolink catalog)."""
+    service.repo = MagicMock()
+    service.repo.create_page = AsyncMock(side_effect=fake_create_page)
+    service.repo.get_page_by_slug = (
+        AsyncMock(side_effect=get_by_slug) if get_by_slug else AsyncMock(return_value=None)
+    )
+    service.repo.slug_exists = AsyncMock(return_value=False)
+    service.repo.rebuild_links = AsyncMock(return_value=[])
+    service.repo.resolve_slug_to_page_id = AsyncMock(return_value=None)
+    service.repo.list_link_targets = AsyncMock(return_value=[])
+    service.repo.update_page = AsyncMock(side_effect=lambda page, **kwargs: page)
+    service.rag_repo = MagicMock()
+    service.rag_repo.create_document = AsyncMock(return_value=MagicMock(id="doc-1"))
+    service.rag_repo.delete_document = AsyncMock(return_value=True)
+
+
 @pytest.mark.asyncio
 async def test_ingest_creates_raw_summary_and_rippled():
     """wiki_ingest creates Raw + Summary + rippled pages + Log entry."""
@@ -249,18 +265,7 @@ async def test_ingest_creates_raw_summary_and_rippled():
         created_pages.append(page)
         return page
 
-    service.repo = MagicMock()
-    service.repo.create_page = AsyncMock(side_effect=fake_create_page)
-    service.repo.get_page_by_slug = AsyncMock(return_value=None)
-    service.repo.slug_exists = AsyncMock(return_value=False)
-    service.repo.rebuild_links = AsyncMock(return_value=[])
-    service.repo.resolve_slug_to_page_id = AsyncMock(return_value=None)
-
-    service.rag_repo = MagicMock()
-    service.rag_repo.create_document = AsyncMock(
-        return_value=MagicMock(id="doc-1")
-    )
-    service.rag_repo.delete_document = AsyncMock(return_value=True)
+    _mock_ingest_repo(service, fake_create_page=fake_create_page)
 
     content = "# Title\n\nSome content here.\n\n## SubSection\n\nMore content with details."
 
@@ -274,6 +279,8 @@ async def test_ingest_creates_raw_summary_and_rippled():
     assert result.summaryPageId is not None
     assert len(result.rippledPages) >= 1
     assert result.truncated is False
+    assert result.mergedPages == []
+    assert result.autoLinksApplied >= 0
 
     raw_pages = [p for p in created_pages if p.folder == "raw"]
     assert len(raw_pages) == 1
@@ -303,18 +310,12 @@ async def test_ingest_ripple_limit():
             immutable=kwargs.get("immutable", False),
         )
 
-    service.repo = MagicMock()
-    service.repo.create_page = AsyncMock(side_effect=fake_create_page)
-    service.repo.get_page_by_slug = AsyncMock(return_value=None)
-    service.repo.slug_exists = AsyncMock(return_value=False)
-    service.repo.rebuild_links = AsyncMock(return_value=[])
-    service.repo.resolve_slug_to_page_id = AsyncMock(return_value=None)
+    _mock_ingest_repo(service, fake_create_page=fake_create_page)
 
-    service.rag_repo = MagicMock()
-    service.rag_repo.create_document = AsyncMock(return_value=MagicMock(id="doc-x"))
-    service.rag_repo.delete_document = AsyncMock(return_value=True)
-
-    many_headings = "\n\n".join(f"# Entity {i}\n\nDescription of entity {i}." for i in range(30))
+    # H2 headings → entities (H1 is skipped by heuristic)
+    many_headings = "# Large ingest\n\n" + "\n\n".join(
+        f"## Entity {i}\n\nDescription of entity {i}." for i in range(30)
+    )
 
     result = await service.ingest(
         tenant_ctx=_tenant_ctx(),
@@ -325,6 +326,162 @@ async def test_ingest_ripple_limit():
     assert result.truncated is True
     total_rippled = len(result.rippledPages)
     assert total_rippled <= 13  # 15 max minus raw and summary
+
+
+@pytest.mark.asyncio
+async def test_ingest_merges_existing_entity_instead_of_slug_suffix():
+    """Second ingest of same entity slug appends to existing page — no firma-2."""
+    db = AsyncMock()
+    service = WikiService(db)
+
+    existing_entity = _make_page(
+        page_id="entity-firma",
+        folder="entities",
+        slug="portal-klienta",
+        title="Portal Klienta",
+        body_md="# Portal Klienta\n\nFirst notes.\n\nSource: [[first-raw|raw]]",
+    )
+    created_pages = []
+
+    async def fake_create_page(**kwargs):
+        page = _make_page(
+            page_id=f"page-{len(created_pages)}",
+            folder=kwargs["folder"],
+            slug=kwargs["slug"],
+            title=kwargs["title"],
+            body_md=kwargs["body_md"],
+            immutable=kwargs.get("immutable", False),
+        )
+        created_pages.append(page)
+        return page
+
+    async def fake_get_by_slug(*, tenant_id, user_id, folder, slug):
+        if folder == "entities" and slug == "portal-klienta":
+            return existing_entity
+        return None
+
+    updated_bodies: list[str] = []
+
+    async def fake_update_page(page, **kwargs):
+        if "body_md" in kwargs:
+            page.body_md = kwargs["body_md"]
+            updated_bodies.append(kwargs["body_md"])
+        return page
+
+    _mock_ingest_repo(service, fake_create_page=fake_create_page, get_by_slug=fake_get_by_slug)
+    service.repo.update_page = AsyncMock(side_effect=fake_update_page)
+
+    content = (
+        "# Second Doc\n\nMentions Portal Klienta and Gear-Stack.\n\n"
+        "## Portal Klienta\n\nMore context about the portal.\n"
+    )
+
+    result = await service.ingest(
+        tenant_ctx=_tenant_ctx(),
+        content=content,
+        title="Second Doc",
+    )
+
+    entity_creates = [p for p in created_pages if p.folder == "entities"]
+    assert entity_creates == []
+    assert "entity-firma" in result.mergedPages
+    assert "entity-firma" in result.rippledPages
+    assert any("## From ingest" in b for b in updated_bodies)
+    assert any("Source: [[" in b and "raw]]" in b for b in updated_bodies)
+    assert not any(p.slug == "portal-klienta-2" for p in created_pages)
+
+
+@pytest.mark.asyncio
+async def test_ingest_autolinks_known_page_in_summary():
+    """Summary body mentioning an existing title gets [[slug]] and rebuild_links."""
+    db = AsyncMock()
+    service = WikiService(db)
+
+    created_pages = []
+
+    async def fake_create_page(**kwargs):
+        page = _make_page(
+            page_id=f"page-{len(created_pages)}",
+            folder=kwargs["folder"],
+            slug=kwargs["slug"],
+            title=kwargs["title"],
+            body_md=kwargs["body_md"],
+            immutable=kwargs.get("immutable", False),
+        )
+        created_pages.append(page)
+        return page
+
+    async def fake_update_page(page, **kwargs):
+        if "body_md" in kwargs:
+            page.body_md = kwargs["body_md"]
+        return page
+
+    _mock_ingest_repo(service, fake_create_page=fake_create_page)
+    service.repo.update_page = AsyncMock(side_effect=fake_update_page)
+    service.repo.list_link_targets = AsyncMock(
+        return_value=[("gear-stack", "Gear-Stack", "entities")]
+    )
+    service.repo.resolve_slug_to_page_id = AsyncMock(return_value="entity-gear")
+
+    content = "# Notes\n\nWe use Gear-Stack for the monorepo.\n\n## Other Topic\n\nDetails here."
+
+    result = await service.ingest(
+        tenant_ctx=_tenant_ctx(),
+        content=content,
+        title="Notes",
+    )
+
+    assert result.autoLinksApplied >= 1
+    summary = next(p for p in created_pages if p.folder == "summaries")
+    assert "[[gear-stack" in summary.body_md
+    service.repo.rebuild_links.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ingest_autolinks_within_run_entities():
+    """Newly created entities mentioning each other get cross-links in one ingest."""
+    db = AsyncMock()
+    service = WikiService(db)
+
+    created_pages = []
+
+    async def fake_create_page(**kwargs):
+        page = _make_page(
+            page_id=f"page-{len(created_pages)}",
+            folder=kwargs["folder"],
+            slug=kwargs["slug"],
+            title=kwargs["title"],
+            body_md=kwargs["body_md"],
+            immutable=kwargs.get("immutable", False),
+        )
+        created_pages.append(page)
+        return page
+
+    async def fake_update_page(page, **kwargs):
+        if "body_md" in kwargs:
+            page.body_md = kwargs["body_md"]
+        return page
+
+    _mock_ingest_repo(service, fake_create_page=fake_create_page)
+    service.repo.update_page = AsyncMock(side_effect=fake_update_page)
+
+    content = (
+        "# Map\n\n"
+        "## Alpha Project\n\nRelated to Beta Module and more.\n\n"
+        "## Beta Module\n\nStandalone notes.\n"
+    )
+
+    result = await service.ingest(
+        tenant_ctx=_tenant_ctx(),
+        content=content,
+        title="Map",
+    )
+
+    entities = [p for p in created_pages if p.folder == "entities"]
+    assert len(entities) >= 2
+    alpha = next(p for p in entities if p.slug == "alpha-project")
+    assert "[[beta-module" in alpha.body_md
+    assert result.autoLinksApplied >= 1
 
 
 # --- Inbox no auto-promote ---
