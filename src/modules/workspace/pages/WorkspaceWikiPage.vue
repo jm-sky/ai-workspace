@@ -123,6 +123,17 @@ const insertLink = (slug: string) => {
   linkSearch.value = ''
 }
 
+const navigateToLinkedPage = async (
+  pageId: string | null | undefined,
+  folder?: string | null,
+) => {
+  if (!pageId) return
+  if (folder) {
+    activeFolder.value = folder as WikiFolder
+  }
+  await selectPage(pageId)
+}
+
 onMounted(() => {
   void loadPages()
 })
@@ -555,7 +566,31 @@ const svgRef = ref<SVGSVGElement | null>(null)
                       :key="link.id"
                       class="text-xs"
                     >
-                      <span class="text-primary">[[{{ link.toSlug }}]]</span>
+                      <button
+                        v-if="link.toPageId"
+                        type="button"
+                        class="text-left text-primary underline-offset-2 hover:underline"
+                        @click="navigateToLinkedPage(link.toPageId, link.toFolder)"
+                      >
+                        [[{{ link.toSlug }}]]
+                        <span
+                          v-if="link.toTitle && link.toTitle !== link.toSlug"
+                          class="text-muted-foreground"
+                        > — {{ link.toTitle }}</span>
+                      </button>
+                      <span
+                        v-else
+                        class="text-primary"
+                      >
+                        [[{{ link.toSlug }}]]
+                      </span>
+                      <Badge
+                        v-if="link.toFolder"
+                        variant="outline"
+                        class="ml-1 text-[10px]"
+                      >
+                        {{ link.toFolder }}
+                      </Badge>
                       <span
                         v-if="!link.toPageId"
                         class="text-destructive"
@@ -575,7 +610,24 @@ const svgRef = ref<SVGSVGElement | null>(null)
                       :key="link.id"
                       class="text-xs"
                     >
-                      <span class="text-primary">[[{{ link.toSlug }}]]</span>
+                      <button
+                        type="button"
+                        class="text-left text-primary underline-offset-2 hover:underline"
+                        @click="navigateToLinkedPage(link.fromPageId, link.fromFolder)"
+                      >
+                        [[{{ link.fromSlug || link.fromPageId }}]]
+                        <span
+                          v-if="link.fromTitle"
+                          class="text-muted-foreground"
+                        > — {{ link.fromTitle }}</span>
+                      </button>
+                      <Badge
+                        v-if="link.fromFolder"
+                        variant="outline"
+                        class="ml-1 text-[10px]"
+                      >
+                        {{ link.fromFolder }}
+                      </Badge>
                     </li>
                   </ul>
                 </div>

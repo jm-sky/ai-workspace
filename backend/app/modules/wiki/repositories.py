@@ -229,6 +229,25 @@ class WikiRepository:
         await self.db.flush()
         return result
 
+    async def get_pages_by_ids(
+        self,
+        page_ids: list[str],
+        *,
+        tenant_id: str,
+        user_id: str,
+    ) -> dict[str, WikiPage]:
+        """Return id → page map for the given IDs (ACL-scoped)."""
+        if not page_ids:
+            return {}
+        result = await self.db.execute(
+            select(WikiPage).where(
+                WikiPage.id.in_(page_ids),
+                WikiPage.tenant_id == tenant_id,
+                WikiPage.user_id == user_id,
+            )
+        )
+        return {page.id: page for page in result.scalars().all()}
+
     async def get_outgoing_links(self, page_id: str) -> list[WikiLink]:
         result = await self.db.execute(
             select(WikiLink).where(WikiLink.from_page_id == page_id)

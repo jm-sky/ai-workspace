@@ -76,13 +76,23 @@ def _page_to_response(page: WikiPage) -> WikiPageResponse:
     )
 
 
-def _link_to_response(link: WikiLink) -> WikiLinkResponse:
+def _link_to_response(
+    link: WikiLink,
+    *,
+    from_page: WikiPage | None = None,
+    to_page: WikiPage | None = None,
+) -> WikiLinkResponse:
     return WikiLinkResponse(
         id=link.id,
         fromPageId=link.from_page_id,
         toPageId=link.to_page_id,
         toSlug=link.to_slug,
         linkText=link.link_text,
+        fromSlug=from_page.slug if from_page else None,
+        fromTitle=from_page.title if from_page else None,
+        fromFolder=from_page.folder if from_page else None,
+        toTitle=to_page.title if to_page else None,
+        toFolder=to_page.folder if to_page else None,
     )
 
 
@@ -290,11 +300,36 @@ class WikiService:
             return None
         outgoing = await self.repo.get_outgoing_links(page.id)
         incoming = await self.repo.get_incoming_links(page.id)
+
+        related_ids = {
+            *(link.from_page_id for link in incoming),
+            *(link.to_page_id for link in outgoing if link.to_page_id),
+        }
+        related = await self.repo.get_pages_by_ids(
+            list(related_ids),
+            tenant_id=tenant_ctx.tenant_id,
+            user_id=tenant_ctx.user_id,
+        )
+
         resp = _page_to_response(page)
         return WikiPageDetailResponse(
             **resp.model_dump(),
-            outgoingLinks=[_link_to_response(lnk) for lnk in outgoing],
-            incomingLinks=[_link_to_response(lnk) for lnk in incoming],
+            outgoingLinks=[
+                _link_to_response(
+                    lnk,
+                    from_page=page,
+                    to_page=related.get(lnk.to_page_id) if lnk.to_page_id else None,
+                )
+                for lnk in outgoing
+            ],
+            incomingLinks=[
+                _link_to_response(
+                    lnk,
+                    from_page=related.get(lnk.from_page_id),
+                    to_page=page,
+                )
+                for lnk in incoming
+            ],
         )
 
     async def list_pages(

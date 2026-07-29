@@ -47,6 +47,11 @@ class WikiLinkResponse(BaseModel):
     toPageId: str | None = None
     toSlug: str
     linkText: str | None = None
+    fromSlug: str | None = None
+    fromTitle: str | None = None
+    fromFolder: str | None = None
+    toTitle: str | None = None
+    toFolder: str | None = None
 
 
 class WikiPageDetailResponse(WikiPageResponse):

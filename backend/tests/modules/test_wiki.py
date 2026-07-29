@@ -187,6 +187,48 @@ async def test_immutable_page_delete_raises():
 # --- Wikilinks rebuild ---
 
 @pytest.mark.asyncio
+async def test_get_page_enriches_incoming_link_source():
+    """Incoming links expose fromSlug/fromTitle of the linking page, not toSlug only."""
+    db = AsyncMock()
+    service = WikiService(db)
+
+    target = _make_page(
+        page_id="entity-1",
+        folder="entities",
+        slug="portal-klienta",
+        title="Portal Klienta",
+    )
+    source = _make_page(
+        page_id="summary-1",
+        folder="summaries",
+        slug="summary-praca",
+        title="Summary: Praca",
+    )
+    incoming = MagicMock()
+    incoming.id = "link-1"
+    incoming.from_page_id = "summary-1"
+    incoming.to_page_id = "entity-1"
+    incoming.to_slug = "portal-klienta"
+    incoming.link_text = None
+
+    service.repo = MagicMock()
+    service.repo.get_page = AsyncMock(return_value=target)
+    service.repo.get_outgoing_links = AsyncMock(return_value=[])
+    service.repo.get_incoming_links = AsyncMock(return_value=[incoming])
+    service.repo.get_pages_by_ids = AsyncMock(return_value={"summary-1": source})
+
+    result = await service.get_page(tenant_ctx=_tenant_ctx(), page_id="entity-1")
+
+    assert result is not None
+    assert len(result.incomingLinks) == 1
+    link = result.incomingLinks[0]
+    assert link.fromSlug == "summary-praca"
+    assert link.fromTitle == "Summary: Praca"
+    assert link.fromFolder == "summaries"
+    assert link.toSlug == "portal-klienta"
+
+
+@pytest.mark.asyncio
 async def test_wikilinks_rebuild_on_save():
     """Saving page with [[a]] and [[b|text]] creates 2 edges; nonexistent slug → to_page_id=None."""
     db = AsyncMock()

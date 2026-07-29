@@ -23,6 +23,11 @@ export interface IWikiLink {
   toPageId?: string | null
   toSlug: string
   linkText?: string | null
+  fromSlug?: string | null
+  fromTitle?: string | null
+  fromFolder?: string | null
+  toTitle?: string | null
+  toFolder?: string | null
 }
 
 export interface IWikiPageDetail extends IWikiPage {
