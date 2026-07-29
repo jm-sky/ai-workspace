@@ -340,3 +340,53 @@ class WikiRepository:
             )
         )
         return list(result.scalars().all())
+
+    async def bulk_delete_pages(
+        self,
+        *,
+        tenant_id: str,
+        user_id: str,
+        folder: str | None = None,
+        status: str | None = None,
+        page_ids: list[str] | None = None,
+        force: bool = False,
+    ) -> list[WikiPage]:
+        """Select and delete matching pages. Immutable pages skipped unless force=True."""
+        q = select(WikiPage).where(
+            WikiPage.tenant_id == tenant_id,
+            WikiPage.user_id == user_id,
+        )
+        if folder:
+            q = q.where(WikiPage.folder == folder)
+        if status:
+            q = q.where(WikiPage.status == status)
+        if page_ids is not None:
+            q = q.where(WikiPage.id.in_(page_ids))
+        if not force:
+            q = q.where(WikiPage.immutable.is_(False))
+
+        result = await self.db.execute(q)
+        pages = list(result.scalars().all())
+        for page in pages:
+            await self.db.delete(page)
+        await self.db.flush()
+        return pages
+
+    async def purge_all_pages(
+        self,
+        *,
+        tenant_id: str,
+        user_id: str,
+    ) -> list[WikiPage]:
+        """Delete ALL pages for user in tenant. Returns pages for RAG cleanup."""
+        result = await self.db.execute(
+            select(WikiPage).where(
+                WikiPage.tenant_id == tenant_id,
+                WikiPage.user_id == user_id,
+            )
+        )
+        pages = list(result.scalars().all())
+        for page in pages:
+            await self.db.delete(page)
+        await self.db.flush()
+        return pages

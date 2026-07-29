@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue'
 import {
+  bulkDeleteWikiPages,
   createWikiPage,
   deleteWikiPage,
   deprecateWikiPage,
@@ -8,6 +9,7 @@ import {
   ingestWiki,
   lintWiki,
   listWikiPages,
+  purgeAllWikiPages,
 } from '@/modules/workspace/services/wikiApiService'
 import { getApiErrorMessage } from '@/shared/utils/apiError'
 import type {
@@ -31,6 +33,10 @@ export function useWikiBrowser() {
   const isGraphLoading = ref(false)
   const lintResult = ref<IWikiLintResponse | null>(null)
 
+  // Multi-select & search state
+  const selectedIds = ref<Set<string>>(new Set())
+  const searchQuery = ref('')
+
   const folderCounts = computed(() => {
     const counts: Record<string, number> = {}
     for (const p of pages.value) {
@@ -40,9 +46,44 @@ export function useWikiBrowser() {
   })
 
   const filteredPages = computed(() => {
-    if (!activeFolder.value) return pages.value
-    return pages.value.filter((p) => p.folder === activeFolder.value)
+    let result = pages.value
+    if (activeFolder.value) {
+      result = result.filter((p) => p.folder === activeFolder.value)
+    }
+    const q = searchQuery.value.trim().toLowerCase()
+    if (q) {
+      result = result.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          p.slug.toLowerCase().includes(q),
+      )
+    }
+    return result
   })
+
+  const allFilteredSelected = computed(
+    () =>
+      filteredPages.value.length > 0 &&
+      filteredPages.value.every((p) => selectedIds.value.has(p.id)),
+  )
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds.value)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    selectedIds.value = next
+  }
+
+  const selectAll = () => {
+    selectedIds.value = new Set(filteredPages.value.map((p) => p.id))
+  }
+
+  const clearSelection = () => {
+    selectedIds.value = new Set()
+  }
 
   const loadPages = async (options?: { folder?: string; silent?: boolean }) => {
     if (!options?.silent) isLoading.value = true
@@ -162,6 +203,50 @@ export function useWikiBrowser() {
     }
   }
 
+  const bulkDelete = async (force = false): Promise<number> => {
+    isSaving.value = true
+    error.value = null
+    try {
+      const ids = Array.from(selectedIds.value)
+      const result = await bulkDeleteWikiPages({ page_ids: ids.length > 0 ? ids : undefined, force })
+      const deletedSet = ids.length > 0 ? new Set(ids) : null
+      if (deletedSet) {
+        pages.value = pages.value.filter((p) => !deletedSet.has(p.id))
+        total.value = Math.max(0, total.value - result.deleted)
+        if (selectedPage.value && deletedSet.has(selectedPage.value.id)) {
+          selectedPage.value = null
+        }
+      } else {
+        await loadPages()
+      }
+      clearSelection()
+      return result.deleted
+    } catch (err) {
+      error.value = getApiErrorMessage(err, 'Failed to bulk delete')
+      throw err
+    } finally {
+      isSaving.value = false
+    }
+  }
+
+  const doPurge = async (): Promise<number> => {
+    isSaving.value = true
+    error.value = null
+    try {
+      const result = await purgeAllWikiPages()
+      pages.value = []
+      total.value = 0
+      selectedPage.value = null
+      clearSelection()
+      return result.deleted
+    } catch (err) {
+      error.value = getApiErrorMessage(err, 'Failed to purge wiki')
+      throw err
+    } finally {
+      isSaving.value = false
+    }
+  }
+
   return {
     pages,
     total,
@@ -176,6 +261,9 @@ export function useWikiBrowser() {
     lintResult,
     folderCounts,
     filteredPages,
+    selectedIds,
+    searchQuery,
+    allFilteredSelected,
     loadPages,
     selectPage,
     closePage,
@@ -185,5 +273,10 @@ export function useWikiBrowser() {
     doIngest,
     loadGraph,
     runLint,
+    toggleSelect,
+    selectAll,
+    clearSelection,
+    bulkDelete,
+    doPurge,
   }
 }

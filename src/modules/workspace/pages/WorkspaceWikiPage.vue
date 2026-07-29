@@ -16,6 +16,7 @@ import { useI18n } from 'vue-i18n'
 import { toast } from 'vue-sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,9 @@ const {
   graphData,
   isGraphLoading,
   filteredPages,
+  selectedIds,
+  searchQuery,
+  allFilteredSelected,
   loadPages,
   selectPage,
   addPage,
@@ -70,6 +74,11 @@ const {
   doDeprecate,
   doIngest,
   loadGraph,
+  toggleSelect,
+  selectAll,
+  clearSelection,
+  bulkDelete,
+  doPurge,
 } = useWikiBrowser()
 
 const activeTab = ref('pages')
@@ -84,6 +93,9 @@ const showLinkPicker = ref(false)
 const linkSearch = ref('')
 const bodyTextareaRef = ref<{ $el: HTMLTextAreaElement } | null>(null)
 const confirmDeprecateId = ref<string | null>(null)
+const showConfirmBulkDelete = ref(false)
+const showConfirmPurge = ref(false)
+const purgeConfirmText = ref('')
 
 const filteredForPicker = computed(() => {
   const q = linkSearch.value.trim().toLowerCase()
@@ -171,6 +183,29 @@ const handleIngest = async () => {
   }
 }
 
+const handleBulkDelete = async () => {
+  showConfirmBulkDelete.value = false
+  try {
+    const count = await bulkDelete()
+    toast.success(t('workspace.wiki.bulkDeleted', { count }))
+    await loadPages()
+  } catch {
+    toast.error(t('workspace.wiki.bulkDeleteFailed'))
+  }
+}
+
+const handlePurge = async () => {
+  if (purgeConfirmText.value !== 'PURGE') return
+  showConfirmPurge.value = false
+  purgeConfirmText.value = ''
+  try {
+    const count = await doPurge()
+    toast.success(t('workspace.wiki.purged', { count }))
+  } catch {
+    toast.error(t('workspace.wiki.purgeFailed'))
+  }
+}
+
 const handleTabChange = (tab: string | number) => {
   const next = String(tab)
   activeTab.value = next
@@ -251,6 +286,21 @@ const svgRef = ref<SVGSVGElement | null>(null)
               <TooltipContent>{{ t('workspace.wiki.help.ingest') }}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger as-child>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  @click="showConfirmPurge = true"
+                >
+                  <Trash2 class="size-4" />
+                  {{ t('workspace.wiki.purgeAll') }}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{{ t('workspace.wiki.help.purgeAll') }}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
@@ -323,156 +373,212 @@ const svgRef = ref<SVGSVGElement | null>(null)
           </div>
 
           <!-- Page list + detail -->
-          <div class="flex min-h-0 flex-1 gap-3 overflow-hidden">
-            <!-- List -->
-            <div class="min-h-0 flex-1 overflow-y-auto rounded-xl border border-hairline bg-surface-canvas">
-              <p
-                v-if="isLoading"
-                class="p-4 text-sm text-muted-foreground"
+          <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+            <!-- Search + selection toolbar -->
+            <div class="flex shrink-0 items-center gap-2">
+              <Input
+                v-model="searchQuery"
+                :placeholder="t('workspace.wiki.searchPlaceholder')"
+                class="h-8 flex-1 text-sm"
+              />
+              <div
+                v-if="selectedIds.size > 0"
+                class="flex items-center gap-2"
               >
-                {{ t('workspace.wiki.loading') }}
-              </p>
-              <p
-                v-else-if="filteredPages.length === 0"
-                class="p-4 text-sm text-muted-foreground"
-              >
-                {{ t('workspace.wiki.empty') }}
-              </p>
-              <ul v-else class="divide-y divide-hairline">
-                <li
-                  v-for="page in filteredPages"
-                  :key="page.id"
-                  class="flex cursor-pointer items-start justify-between gap-2 p-3 transition-colors hover:bg-muted/50"
-                  :class="{ 'bg-muted/30': selectedPage?.id === page.id }"
-                  @click="selectPage(page.id)"
+                <span class="text-xs text-muted-foreground">
+                  {{ t('workspace.wiki.selectedCount', { count: selectedIds.size }) }}
+                </span>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  class="h-8"
+                  @click="showConfirmBulkDelete = true"
                 >
-                  <div class="min-w-0 flex-1">
-                    <p class="truncate text-sm font-medium">
-                      {{ page.title }}
-                    </p>
-                    <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Badge
-                        variant="outline"
-                        class="text-[10px]"
-                      >
-                        {{ page.folder }}
-                      </Badge>
-                      <Badge
-                        v-if="page.status === 'deprecated'"
-                        variant="secondary"
-                        class="text-[10px]"
-                      >
-                        {{ t('workspace.wiki.statusDeprecated') }}
-                      </Badge>
-                      <span>{{ formatDate(page.updatedAt) }}</span>
-                    </div>
-                  </div>
-                  <ChevronRight class="mt-1 size-3.5 shrink-0 text-muted-foreground" />
-                </li>
-              </ul>
+                  <Trash2 class="size-3.5" />
+                  {{ t('workspace.wiki.deleteSelected') }}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  class="h-8"
+                  @click="clearSelection"
+                >
+                  {{ t('workspace.wiki.clearSelection') }}
+                </Button>
+              </div>
             </div>
 
-            <!-- Detail panel -->
-            <div
-              v-if="selectedPage"
-              class="flex w-96 shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border border-hairline bg-surface-raised p-4"
-            >
-              <div class="flex items-start justify-between">
-                <div>
-                  <h2 class="text-sm font-semibold">
-                    {{ selectedPage.title }}
-                  </h2>
-                  <div class="flex gap-1.5 text-xs text-muted-foreground">
-                    <Badge variant="outline">
-                      {{ selectedPage.folder }}
-                    </Badge>
-                    <Badge :variant="statusVariant(selectedPage.status)">
-                      {{ selectedPage.status }}
-                    </Badge>
-                    <TooltipProvider v-if="selectedPage.immutable">
+            <div class="flex min-h-0 flex-1 gap-3 overflow-hidden">
+              <!-- List -->
+              <div class="min-h-0 flex-1 overflow-y-auto rounded-xl border border-hairline bg-surface-canvas">
+                <p
+                  v-if="isLoading"
+                  class="p-4 text-sm text-muted-foreground"
+                >
+                  {{ t('workspace.wiki.loading') }}
+                </p>
+                <p
+                  v-else-if="filteredPages.length === 0"
+                  class="p-4 text-sm text-muted-foreground"
+                >
+                  {{ t('workspace.wiki.empty') }}
+                </p>
+                <template v-else>
+                  <!-- Select all header -->
+                  <div class="flex items-center gap-2 border-b border-hairline px-3 py-2">
+                    <Checkbox
+                      :model-value="allFilteredSelected"
+                      @update:model-value="allFilteredSelected ? clearSelection() : selectAll()"
+                    />
+                    <span class="text-xs text-muted-foreground">
+                      {{ t('workspace.wiki.selectAll') }}
+                    </span>
+                  </div>
+                  <ul class="divide-y divide-hairline">
+                    <li
+                      v-for="page in filteredPages"
+                      :key="page.id"
+                      class="flex cursor-pointer items-start gap-2 p-3 transition-colors hover:bg-muted/50"
+                      :class="{ 'bg-muted/30': selectedPage?.id === page.id }"
+                    >
+                      <Checkbox
+                        :model-value="selectedIds.has(page.id)"
+                        class="mt-0.5 shrink-0"
+                        @update:model-value="toggleSelect(page.id)"
+                        @click.stop
+                      />
+                      <div
+                        class="min-w-0 flex-1"
+                        @click="selectPage(page.id)"
+                      >
+                        <p class="truncate text-sm font-medium">
+                          {{ page.title }}
+                        </p>
+                        <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Badge
+                            variant="outline"
+                            class="text-[10px]"
+                          >
+                            {{ page.folder }}
+                          </Badge>
+                          <Badge
+                            v-if="page.status === 'deprecated'"
+                            variant="secondary"
+                            class="text-[10px]"
+                          >
+                            {{ t('workspace.wiki.statusDeprecated') }}
+                          </Badge>
+                          <span>{{ formatDate(page.updatedAt) }}</span>
+                        </div>
+                      </div>
+                      <ChevronRight class="mt-1 size-3.5 shrink-0 text-muted-foreground" />
+                    </li>
+                  </ul>
+                </template>
+              </div>
+
+              <!-- Detail panel -->
+              <div
+                v-if="selectedPage"
+                class="flex w-96 shrink-0 flex-col gap-3 overflow-y-auto rounded-xl border border-hairline bg-surface-raised p-4"
+              >
+                <div class="flex items-start justify-between">
+                  <div>
+                    <h2 class="text-sm font-semibold">
+                      {{ selectedPage.title }}
+                    </h2>
+                    <div class="flex gap-1.5 text-xs text-muted-foreground">
+                      <Badge variant="outline">
+                        {{ selectedPage.folder }}
+                      </Badge>
+                      <Badge :variant="statusVariant(selectedPage.status)">
+                        {{ selectedPage.status }}
+                      </Badge>
+                      <TooltipProvider v-if="selectedPage.immutable">
+                        <Tooltip>
+                          <TooltipTrigger as-child>
+                            <span class="cursor-default">🔒</span>
+                          </TooltipTrigger>
+                          <TooltipContent>{{ t('workspace.wiki.help.immutable') }}</TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  </div>
+                  <div class="flex gap-1">
+                    <TooltipProvider v-if="!selectedPage.immutable && selectedPage.status === 'active'">
                       <Tooltip>
                         <TooltipTrigger as-child>
-                          <span class="cursor-default">🔒</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            :aria-label="t('workspace.wiki.deprecate')"
+                            @click="confirmDeprecateId = selectedPage.id"
+                          >
+                            <AlertTriangle class="size-4 text-amber-500" />
+                          </Button>
                         </TooltipTrigger>
-                        <TooltipContent>{{ t('workspace.wiki.help.immutable') }}</TooltipContent>
+                        <TooltipContent>{{ t('workspace.wiki.help.deprecate') }}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <TooltipProvider v-if="!selectedPage.immutable">
+                      <Tooltip>
+                        <TooltipTrigger as-child>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            :aria-label="t('workspace.wiki.delete')"
+                            @click="handleDelete(selectedPage.id)"
+                          >
+                            <Trash2 class="size-4 text-destructive" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{{ t('workspace.wiki.help.delete') }}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                   </div>
                 </div>
-                <div class="flex gap-1">
-                  <TooltipProvider v-if="!selectedPage.immutable && selectedPage.status === 'active'">
-                    <Tooltip>
-                      <TooltipTrigger as-child>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          :aria-label="t('workspace.wiki.deprecate')"
-                          @click="confirmDeprecateId = selectedPage.id"
-                        >
-                          <AlertTriangle class="size-4 text-amber-500" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{{ t('workspace.wiki.help.deprecate') }}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <TooltipProvider v-if="!selectedPage.immutable">
-                    <Tooltip>
-                      <TooltipTrigger as-child>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          :aria-label="t('workspace.wiki.delete')"
-                          @click="handleDelete(selectedPage.id)"
-                        >
-                          <Trash2 class="size-4 text-destructive" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>{{ t('workspace.wiki.help.delete') }}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+
+                <!-- Body preview -->
+                <div class="whitespace-pre-wrap rounded-lg border border-hairline bg-surface-canvas p-3 text-sm">
+                  {{ selectedPage.bodyMd }}
                 </div>
-              </div>
 
-              <!-- Body preview -->
-              <div class="whitespace-pre-wrap rounded-lg border border-hairline bg-surface-canvas p-3 text-sm">
-                {{ selectedPage.bodyMd }}
-              </div>
+                <!-- Links -->
+                <div v-if="selectedPage.outgoingLinks.length > 0">
+                  <h3 class="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <Link2 class="size-3" />
+                    {{ t('workspace.wiki.outgoingLinks') }}
+                  </h3>
+                  <ul class="space-y-0.5">
+                    <li
+                      v-for="link in selectedPage.outgoingLinks"
+                      :key="link.id"
+                      class="text-xs"
+                    >
+                      <span class="text-primary">[[{{ link.toSlug }}]]</span>
+                      <span
+                        v-if="!link.toPageId"
+                        class="text-destructive"
+                      >(dangling)</span>
+                    </li>
+                  </ul>
+                </div>
 
-              <!-- Links -->
-              <div v-if="selectedPage.outgoingLinks.length > 0">
-                <h3 class="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                  <Link2 class="size-3" />
-                  {{ t('workspace.wiki.outgoingLinks') }}
-                </h3>
-                <ul class="space-y-0.5">
-                  <li
-                    v-for="link in selectedPage.outgoingLinks"
-                    :key="link.id"
-                    class="text-xs"
-                  >
-                    <span class="text-primary">[[{{ link.toSlug }}]]</span>
-                    <span
-                      v-if="!link.toPageId"
-                      class="text-destructive"
-                    >(dangling)</span>
-                  </li>
-                </ul>
-              </div>
-
-              <div v-if="selectedPage.incomingLinks.length > 0">
-                <h3 class="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                  <Link2 class="size-3" />
-                  {{ t('workspace.wiki.incomingLinks') }}
-                </h3>
-                <ul class="space-y-0.5">
-                  <li
-                    v-for="link in selectedPage.incomingLinks"
-                    :key="link.id"
-                    class="text-xs"
-                  >
-                    <span class="text-primary">[[{{ link.toSlug }}]]</span>
-                  </li>
-                </ul>
+                <div v-if="selectedPage.incomingLinks.length > 0">
+                  <h3 class="mb-1 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <Link2 class="size-3" />
+                    {{ t('workspace.wiki.incomingLinks') }}
+                  </h3>
+                  <ul class="space-y-0.5">
+                    <li
+                      v-for="link in selectedPage.incomingLinks"
+                      :key="link.id"
+                      class="text-xs"
+                    >
+                      <span class="text-primary">[[{{ link.toSlug }}]]</span>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -608,14 +714,14 @@ const svgRef = ref<SVGSVGElement | null>(null)
       :open="showIngestDialog"
       @update:open="(open) => { if (!open) showIngestDialog = false }"
     >
-      <DialogContent class="max-w-lg border-hairline bg-surface-raised">
-        <DialogHeader>
+      <DialogContent class="flex max-h-[90vh] max-w-lg flex-col border-hairline bg-surface-raised">
+        <DialogHeader class="shrink-0">
           <DialogTitle>{{ t('workspace.wiki.ingestTitle') }}</DialogTitle>
         </DialogHeader>
-        <p class="text-sm text-muted-foreground">
-          {{ t('workspace.wiki.help.ingestDialogHint') }}
-        </p>
-        <div class="space-y-3">
+        <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+          <p class="text-sm text-muted-foreground">
+            {{ t('workspace.wiki.help.ingestDialogHint') }}
+          </p>
           <div>
             <Label>{{ t('workspace.wiki.ingestTitleLabel') }}</Label>
             <Input
@@ -629,16 +735,17 @@ const svgRef = ref<SVGSVGElement | null>(null)
               v-model="ingestContent"
               :placeholder="t('workspace.wiki.ingestContentPlaceholder')"
               rows="8"
+              class="min-h-[160px]"
             />
           </div>
-          <div class="flex justify-end">
-            <Button
-              :disabled="isSaving || !ingestContent.trim()"
-              @click="handleIngest"
-            >
-              {{ t('workspace.wiki.ingestAction') }}
-            </Button>
-          </div>
+        </div>
+        <div class="shrink-0 pt-2 flex justify-end">
+          <Button
+            :disabled="isSaving || !ingestContent.trim()"
+            @click="handleIngest"
+          >
+            {{ t('workspace.wiki.ingestAction') }}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -706,6 +813,73 @@ const svgRef = ref<SVGSVGElement | null>(null)
               <span class="font-mono text-xs text-muted-foreground">{{ page.slug }}</span>
             </li>
           </ul>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Bulk delete confirm dialog -->
+    <Dialog
+      :open="showConfirmBulkDelete"
+      @update:open="(open) => { if (!open) showConfirmBulkDelete = false }"
+    >
+      <DialogContent class="max-w-sm border-hairline bg-surface-raised">
+        <DialogHeader>
+          <DialogTitle>{{ t('workspace.wiki.confirmBulkDelete') }}</DialogTitle>
+        </DialogHeader>
+        <p class="text-sm text-muted-foreground">
+          {{ t('workspace.wiki.confirmBulkDeleteDesc', { count: selectedIds.size }) }}
+        </p>
+        <div class="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            @click="showConfirmBulkDelete = false"
+          >
+            {{ t('workspace.wiki.cancel') }}
+          </Button>
+          <Button
+            variant="destructive"
+            @click="handleBulkDelete"
+          >
+            {{ t('workspace.wiki.deleteSelected') }}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Purge all confirm dialog -->
+    <Dialog
+      :open="showConfirmPurge"
+      @update:open="(open) => { if (!open) { showConfirmPurge = false; purgeConfirmText = '' } }"
+    >
+      <DialogContent class="max-w-sm border-hairline bg-surface-raised">
+        <DialogHeader>
+          <DialogTitle>{{ t('workspace.wiki.confirmPurge') }}</DialogTitle>
+        </DialogHeader>
+        <p class="text-sm text-muted-foreground">
+          {{ t('workspace.wiki.confirmPurgeDesc') }}
+        </p>
+        <div class="space-y-2">
+          <Label class="text-xs">{{ t('workspace.wiki.purgeConfirmLabel') }}</Label>
+          <Input
+            v-model="purgeConfirmText"
+            placeholder="PURGE"
+            class="font-mono"
+          />
+        </div>
+        <div class="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            @click="showConfirmPurge = false; purgeConfirmText = ''"
+          >
+            {{ t('workspace.wiki.cancel') }}
+          </Button>
+          <Button
+            variant="destructive"
+            :disabled="purgeConfirmText !== 'PURGE'"
+            @click="handlePurge"
+          >
+            {{ t('workspace.wiki.purgeAll') }}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
