@@ -1,4 +1,5 @@
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
+import { CHAT_ERROR_CODES } from '@/modules/workspace/types/chatErrors'
 import { apiClient } from '@/shared/services/apiClient'
 import {
   CSRF_HEADER_NAME,
@@ -16,6 +17,7 @@ import type {
   IAgentSessionDetail,
   IAgentSessionsListResponse,
   IAgentStreamCompleteEvent,
+  IAgentStreamError,
   IAgentStreamStepEvent,
   IAgentUpdateRequest,
 } from '@/modules/workspace/types/agent'
@@ -62,9 +64,12 @@ export async function streamAgentChat(
   handlers: {
     onStep?: (event: IAgentStreamStepEvent) => void
     onComplete?: (event: IAgentStreamCompleteEvent) => void
-    onError?: (message: string) => void
+    onError?: (error: IAgentStreamError) => void
   },
 ): Promise<void> {
+  const emitError = (message: string, code?: string) => {
+    handlers.onError?.({ message, ...(code ? { code } : {}) })
+  }
   const token = useAuthStore().token
   let csrfToken = getCsrfToken()
   if (!csrfToken) {
@@ -92,13 +97,13 @@ export async function streamAgentChat(
 
   if (!response.ok) {
     const text = await response.text()
-    handlers.onError?.(text || `HTTP ${response.status}`)
+    emitError(text || `HTTP ${response.status}`)
     return
   }
 
   const reader = response.body?.getReader()
   if (!reader) {
-    handlers.onError?.('No response stream')
+    emitError('No response stream', CHAT_ERROR_CODES.STREAM_FAILED)
     return
   }
 
@@ -135,10 +140,11 @@ export async function streamAgentChat(
         } else if (eventType === 'run_complete') {
           handlers.onComplete?.(payload as unknown as IAgentStreamCompleteEvent)
         } else if (eventType === 'error') {
-          handlers.onError?.(String(payload.message ?? 'Agent error'))
+          const code = typeof payload.code === 'string' ? payload.code : undefined
+          emitError(String(payload.message ?? 'Agent error'), code)
         }
       } catch {
-        handlers.onError?.('Failed to parse SSE payload')
+        emitError('Failed to parse SSE payload', CHAT_ERROR_CODES.STREAM_FAILED)
       }
     }
   }

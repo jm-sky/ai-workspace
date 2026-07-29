@@ -4,22 +4,28 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { toast } from 'vue-sonner'
+import Alert from '@/components/ui/alert/Alert.vue'
+import AlertDescription from '@/components/ui/alert/AlertDescription.vue'
 import ChatLayout from '@/layouts/ChatLayout.vue'
 import AgentAuditSheet from '@/modules/workspace/components/AgentAuditSheet.vue'
 import AgentMarkdown from '@/modules/workspace/components/AgentMarkdown.vue'
 import AgentRichBlocks from '@/modules/workspace/components/AgentRichBlocks.vue'
 import ChatComposer from '@/modules/workspace/components/ChatComposer.vue'
 import ChatContextChip from '@/modules/workspace/components/ChatContextChip.vue'
+import ChatErrorBanner from '@/modules/workspace/components/ChatErrorBanner.vue'
+import ChatErrorCard from '@/modules/workspace/components/ChatErrorCard.vue'
 import ChatThinkingIndicator from '@/modules/workspace/components/ChatThinkingIndicator.vue'
 import ChatToolbar from '@/modules/workspace/components/ChatToolbar.vue'
 import ChatToolSteps from '@/modules/workspace/components/ChatToolSteps.vue'
 import { useAgentChat } from '@/modules/workspace/composables/useAgentChat'
 import { useAgentSessions } from '@/modules/workspace/composables/useAgentSessions'
 import { useChatAttachments } from '@/modules/workspace/composables/useChatAttachments'
+import { useChatErrorPresentation } from '@/modules/workspace/composables/useChatErrorPresentation'
 import { useComposerContextHints } from '@/modules/workspace/composables/useComposerContextHints'
 import { useWorkspaceModels } from '@/modules/workspace/composables/useWorkspaceModels'
 
 const { t } = useI18n()
+const { isActionableChatErrorCode } = useChatErrorPresentation()
 const route = useRoute()
 const router = useRouter()
 const input = ref('')
@@ -59,6 +65,9 @@ const {
   activeSessionId,
   sessionAgentKey,
   error,
+  loadError,
+  dismissedActionableBanner,
+  dismissActionableBanner,
   sendMessage,
   loadSession,
   copyActiveRun,
@@ -71,6 +80,23 @@ watch(sessionAgentKey, (key) => {
 
 const agentLocked = computed(
   () => Boolean(activeSessionId.value) || messages.value.length > 0,
+)
+
+const showActionableErrorBanner = computed(
+  () =>
+    Boolean(error.value)
+    && isActionableChatErrorCode(error.value?.code)
+    && !dismissedActionableBanner.value,
+)
+
+const showGenericChatErrorAlert = computed(() => Boolean(loadError.value))
+
+const statusBarVisible = computed(
+  () =>
+    Boolean(sessionsError.value)
+    || showActionableErrorBanner.value
+    || showGenericChatErrorAlert.value
+    || isLoadingRun.value,
 )
 
 const setSessionQuery = async (sessionId?: string) => {
@@ -176,22 +202,28 @@ const handleCopyRun = async () => {
         </div>
 
         <div
-          v-if="sessionsError || error || isLoadingRun"
+          v-if="statusBarVisible"
           class="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-2 px-3 py-2 sm:px-4"
         >
-          <p
+          <Alert
             v-if="sessionsError"
-            class="shrink-0 text-sm text-destructive"
+            variant="destructive"
           >
-            {{ sessionsError }}
-          </p>
+            <AlertDescription>{{ sessionsError }}</AlertDescription>
+          </Alert>
 
-          <p
-            v-if="error"
-            class="shrink-0 text-sm text-destructive"
+          <ChatErrorBanner
+            v-if="showActionableErrorBanner && error"
+            :error="error"
+            @dismiss="dismissActionableBanner"
+          />
+
+          <Alert
+            v-else-if="showGenericChatErrorAlert && loadError"
+            variant="destructive"
           >
-            {{ error }}
-          </p>
+            <AlertDescription>{{ loadError.message }}</AlertDescription>
+          </Alert>
 
           <div
             v-if="isLoadingRun"
@@ -221,7 +253,13 @@ const handleCopyRun = async () => {
               :key="msg.id"
               :class="['w-full', msg.role === 'user' ? 'flex justify-end' : '']"
             >
+              <ChatErrorCard
+                v-if="msg.kind === 'error'"
+                :message="msg.content"
+                :error-code="msg.errorCode"
+              />
               <div
+                v-else
                 :class="msg.role === 'user'
                   ? 'max-w-[85%] rounded-2xl border border-hairline bg-surface-user px-4 py-2.5 text-foreground shadow-soft'
                   : 'w-full'"

@@ -5,6 +5,7 @@ import {
   getAgentSession,
   streamAgentChat,
 } from '@/modules/workspace/services/agentApiService'
+import { CHAT_ERROR_CODES } from '@/modules/workspace/types/chatErrors'
 import { mergeMessageWithContextHints } from '@/modules/workspace/types/contextHints'
 import { getApiErrorMessage } from '@/shared/utils/apiError'
 import type {
@@ -12,6 +13,7 @@ import type {
   IAgentChatMessage,
   IAgentRun,
   IAgentRunStep,
+  IAgentStreamError,
   IAgentStreamStepEvent,
   IRichBlock,
 } from '@/modules/workspace/types/agent'
@@ -52,6 +54,19 @@ function runToMessages(run: IAgentRun): IAgentChatMessage[] {
   return messages
 }
 
+function pushErrorMessage(
+  messages: { value: IAgentChatMessage[] },
+  streamError: IAgentStreamError,
+) {
+  messages.value.push({
+    id: `assistant-error-${Date.now()}`,
+    role: 'assistant',
+    kind: 'error',
+    content: streamError.message,
+    errorCode: streamError.code,
+  })
+}
+
 export function useAgentChat(
   getSelectedModel?: () => string | undefined,
   getSelectedAgentKey?: () => string | undefined,
@@ -61,7 +76,9 @@ export function useAgentChat(
   const isStreaming = ref(false)
   const isLoadingRun = ref(false)
   const isLoading = computed(() => isStreaming.value || isLoadingRun.value)
-  const error = ref<string | null>(null)
+  const error = ref<IAgentStreamError | null>(null)
+  const loadError = ref<IAgentStreamError | null>(null)
+  const dismissedActionableBanner = ref(false)
   const activeRunId = ref<string | null>(null)
   const activeRun = ref<IAgentRun | null>(null)
   const activeSessionId = ref<string | null>(null)
@@ -79,6 +96,8 @@ export function useAgentChat(
 
     isStreaming.value = true
     error.value = null
+    loadError.value = null
+    dismissedActionableBanner.value = false
     steps.value = []
     activeRun.value = null
 
@@ -134,8 +153,8 @@ export function useAgentChat(
               sessionAgentKey.value = event.agentKey
             }
           },
-          onError: (msg) => {
-            error.value = msg
+          onError: (streamError) => {
+            error.value = streamError
           },
         },
       )
@@ -149,19 +168,14 @@ export function useAgentChat(
           blocks,
         })
       } else if (error.value) {
-        messages.value.push({
-          id: `assistant-error-${Date.now()}`,
-          role: 'assistant',
-          content: `**Error:** ${error.value}`,
-        })
+        pushErrorMessage(messages, error.value)
       } else {
-        const fallback = 'Agent did not return a response'
-        error.value = fallback
-        messages.value.push({
-          id: `assistant-error-${Date.now()}`,
-          role: 'assistant',
-          content: `**Error:** ${fallback}`,
-        })
+        const streamError: IAgentStreamError = {
+          message: '',
+          code: CHAT_ERROR_CODES.EMPTY_RESPONSE,
+        }
+        error.value = streamError
+        pushErrorMessage(messages, streamError)
       }
 
       if (runId) {
@@ -172,7 +186,11 @@ export function useAgentChat(
         }
       }
     } catch (err) {
-      error.value = getApiErrorMessage(err, 'Unknown error')
+      const streamError: IAgentStreamError = {
+        message: getApiErrorMessage(err, 'Unknown error'),
+      }
+      error.value = streamError
+      pushErrorMessage(messages, streamError)
     } finally {
       isStreaming.value = false
     }
@@ -182,7 +200,7 @@ export function useAgentChat(
 
   const loadRun = async (runId: string) => {
     isLoadingRun.value = true
-    error.value = null
+    loadError.value = null
     try {
       const run = await getAgentRun(runId)
       messages.value = runToMessages(run)
@@ -191,7 +209,9 @@ export function useAgentChat(
       activeRun.value = run
       activeSessionId.value = run.sessionId ?? null
     } catch (err) {
-      error.value = getApiErrorMessage(err, 'Failed to load session')
+      loadError.value = {
+        message: getApiErrorMessage(err, 'Failed to load session'),
+      }
       throw err
     } finally {
       isLoadingRun.value = false
@@ -200,7 +220,7 @@ export function useAgentChat(
 
   const loadSession = async (sessionId: string) => {
     isLoadingRun.value = true
-    error.value = null
+    loadError.value = null
     try {
       const session = await getAgentSession(sessionId)
       messages.value = session.runs.flatMap(runToMessages)
@@ -211,7 +231,9 @@ export function useAgentChat(
       activeSessionId.value = session.id
       sessionAgentKey.value = session.agentKey
     } catch (err) {
-      error.value = getApiErrorMessage(err, 'Failed to load session')
+      loadError.value = {
+        message: getApiErrorMessage(err, 'Failed to load session'),
+      }
       throw err
     } finally {
       isLoadingRun.value = false
@@ -227,10 +249,16 @@ export function useAgentChat(
     messages.value = []
     steps.value = []
     error.value = null
+    loadError.value = null
+    dismissedActionableBanner.value = false
     activeRunId.value = null
     activeRun.value = null
     activeSessionId.value = null
     sessionAgentKey.value = null
+  }
+
+  const dismissActionableBanner = () => {
+    dismissedActionableBanner.value = true
   }
 
   return {
@@ -240,6 +268,9 @@ export function useAgentChat(
     isStreaming,
     isLoadingRun,
     error,
+    loadError,
+    dismissedActionableBanner,
+    dismissActionableBanner,
     activeRunId,
     activeRun,
     activeSessionId,

@@ -25,6 +25,25 @@ export const workspaceEn = {
       send: 'Send',
       newChat: 'New chat',
       showSessions: 'Sessions',
+      errors: {
+        genericTitle: 'Something went wrong',
+        genericDescription: 'The assistant could not complete your request. Try again or check your workspace settings.',
+        dismiss: 'Dismiss',
+        emptyResponseTitle: 'No response',
+        emptyResponse: 'The assistant did not return a message. Try sending your question again.',
+        streamFailedTitle: 'Connection error',
+        streamFailed: 'The response stream was interrupted or could not be read. Try again.',
+        byok: {
+          title: 'OpenRouter API key required',
+          description: 'On the free plan you need your own OpenRouter API key to use AI chat. Add it in billing settings or upgrade your plan.',
+          cta: 'Open billing',
+        },
+        usageLimit: {
+          title: 'Usage limit reached',
+          description: 'You have reached your monthly AI usage limit. Upgrade your plan or wait until the limit resets.',
+          cta: 'View plans',
+        },
+      },
     },
     agent: {
       selectLabel: 'Agent',
