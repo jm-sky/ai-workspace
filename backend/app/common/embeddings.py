@@ -6,10 +6,12 @@ import json
 import logging
 from typing import cast
 
-from openai import AsyncOpenAI, InternalServerError, RateLimitError
+from openai import InternalServerError, RateLimitError
 
 from app.core.config import settings
 from app.core.redis import get_redis_client
+from app.modules.usage.openrouter_client import create_openrouter_client
+from app.modules.usage.recorder import UsageRecorder, UsageRecordContext
 
 logger = logging.getLogger(__name__)
 
@@ -20,16 +22,21 @@ _INITIAL_BACKOFF_SECONDS = 1.0
 class EmbeddingService:
     """Generate text embeddings via OpenRouter (OpenAI-compatible API)."""
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        *,
+        usage_recorder: UsageRecorder | None = None,
+        usage_ctx: UsageRecordContext | None = None,
+    ):
         key = api_key or settings.ai.openrouter_api_key
         if not key:
             raise ValueError("OPENROUTER_API_KEY is not configured")
         self.model = settings.ai.embedding_model
         self.dimensions = settings.ai.embedding_dimensions
-        self.client = AsyncOpenAI(
-            api_key=key,
-            base_url=settings.ai.openrouter_base_url,
-        )
+        self.usage_recorder = usage_recorder
+        self.usage_ctx = usage_ctx
+        self.client = create_openrouter_client(api_key=key)
 
     async def embed(self, text: str) -> list[float]:
         """Return embedding vector for a single text (Redis-cached)."""
@@ -90,6 +97,12 @@ class EmbeddingService:
                             self.dimensions,
                             len(embedding),
                         )
+                if self.usage_recorder and self.usage_ctx:
+                    await self.usage_recorder.record_embedding_batch(
+                        self.usage_ctx,
+                        model=self.model,
+                        texts=texts,
+                    )
                 return embeddings
             except (RateLimitError, InternalServerError):
                 if attempt == _MAX_ATTEMPTS:

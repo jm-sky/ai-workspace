@@ -3,6 +3,8 @@
 import logging
 from datetime import UTC, datetime
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ...core.config import settings
 from .exceptions import (
     CannotDowngradeGrandfatheredError,
@@ -288,7 +290,14 @@ class BillingService:
         logger.info(f"Updated OpenRouter token for user {user_id}")
         return SubscriptionResponse.model_validate(subscription)
 
-    async def get_subscription_limits(self, user_id: str) -> SubscriptionLimitsResponse:
+    async def get_subscription_limits(
+        self,
+        user_id: str,
+        *,
+        tenant_id: str | None = None,
+        team_id: str | None = None,
+        db: AsyncSession | None = None,
+    ) -> SubscriptionLimitsResponse:
         """
         Get feature limits for user's subscription plan.
 
@@ -307,61 +316,66 @@ class BillingService:
 
         plan_tier = subscription.plan_tier
 
-        # Define limits based on plan tier
-        # Limits are designed to protect database storage, not restrict normal usage
-        # Estimated size: ~1-2 KB per item, ~0.5-1 KB per container (with PostgreSQL overhead)
-        limits: dict[str, dict[str, int | bool]] = {
-            "free": {
-                "aiMonthlyTokenLimit": 0,  # 0 = BYOK required
-                "storageLimit": 100 * 1024 * 1024,  # 100 MB (for images/storage)
-                "canExportData": True,
-                "canUseAdvancedFeatures": False,
-                "requiresByok": True,
-                # Free tier: ~2-4 MB database space protection
-                # Enough for typical users (multiple gear lists), protects against abuse
-                "itemsLimit": 2000,  # ~2-4 MB database space
-                "containersLimit": 100,  # ~50-100 KB database space (containers are lightweight)
-            },
-            "pro": {
-                "aiMonthlyTokenLimit": 1_000_000,  # ~$1 worth
-                "storageLimit": 5 * 1024 * 1024 * 1024,  # 5 GB (for images/storage)
-                "canExportData": True,
-                "canUseAdvancedFeatures": True,
-                "requiresByok": False,
-                # Pro tier: ~10-20 MB database space
-                # For power users with extensive gear collections
-                "itemsLimit": 10000,  # ~10-20 MB database space
-                "containersLimit": 250,  # ~125-250 KB database space
-            },
-            "pro_plus": {
-                "aiMonthlyTokenLimit": 10_000_000,  # ~$10 worth
-                "storageLimit": 50 * 1024 * 1024 * 1024,  # 50 GB (for images/storage)
-                "canExportData": True,
-                "canUseAdvancedFeatures": True,
-                "requiresByok": False,
-                # Pro Plus tier: ~50-100 MB database space
-                # For professional users, gear shops, or very large collections
-                "itemsLimit": 50000,  # ~50-100 MB database space
-                "containersLimit": 500,  # ~250-500 KB database space
-            },
-        }
-
-        plan_limits = limits.get(plan_tier, limits["free"])
-
-        # Type cast plan_tier to Literal and dict bool values to proper types
+        from app.modules.billing.entitlements import get_plan_entitlements
         from typing import Literal, cast
 
+        plan_limits = {
+            tier: {
+                "aiMonthlyTokenLimit": get_plan_entitlements(tier).ai_monthly_token_limit,
+                "storageLimit": get_plan_entitlements(tier).storage_limit_bytes,
+                "canExportData": get_plan_entitlements(tier).can_export_data,
+                "canUseAdvancedFeatures": get_plan_entitlements(tier).can_use_advanced_features,
+                "requiresByok": get_plan_entitlements(tier).requires_byok,
+                "itemsLimit": get_plan_entitlements(tier).items_limit,
+                "containersLimit": get_plan_entitlements(tier).containers_limit,
+            }
+            for tier in ("free", "pro", "pro_plus")
+        }
+
+        plan_limits_entry = plan_limits.get(plan_tier, plan_limits["free"])
         plan_tier_typed = cast(Literal["free", "pro", "pro_plus"], plan_tier)
+
+        workspace_monthly: float | None = None
+        workspace_used: float | None = None
+        period_start: datetime | None = None
+        period_end: datetime | None = None
+        web_used: int | None = None
+        web_cap: int | None = None
+
+        if tenant_id and db is not None:
+            from app.modules.tenants.service import TenantContext
+            from app.modules.usage.service import UsageSummaryService
+
+            summary = await UsageSummaryService(db).get_summary(
+                TenantContext(
+                    user_id=user_id,
+                    tenant_id=tenant_id,
+                    tenant_role="member",
+                    team_id=team_id,
+                )
+            )
+            workspace_monthly = summary.monthly_included_usd
+            workspace_used = summary.used_usd
+            period_start = summary.period_start  # type: ignore[assignment]
+            period_end = summary.period_end  # type: ignore[assignment]
+            web_used = summary.web_search_used
+            web_cap = summary.web_search_cap
 
         return SubscriptionLimitsResponse(
             planTier=plan_tier_typed,
-            aiMonthlyTokenLimit=plan_limits["aiMonthlyTokenLimit"],
-            storageLimit=plan_limits["storageLimit"],
-            canExportData=cast(bool, plan_limits["canExportData"]),
-            canUseAdvancedFeatures=cast(bool, plan_limits["canUseAdvancedFeatures"]),
-            requiresByok=cast(bool, plan_limits["requiresByok"]),
-            itemsLimit=plan_limits["itemsLimit"],
-            containersLimit=plan_limits["containersLimit"],
+            aiMonthlyTokenLimit=plan_limits_entry["aiMonthlyTokenLimit"],
+            storageLimit=plan_limits_entry["storageLimit"],
+            canExportData=cast(bool, plan_limits_entry["canExportData"]),
+            canUseAdvancedFeatures=cast(bool, plan_limits_entry["canUseAdvancedFeatures"]),
+            requiresByok=cast(bool, plan_limits_entry["requiresByok"]),
+            itemsLimit=plan_limits_entry["itemsLimit"],
+            containersLimit=plan_limits_entry["containersLimit"],
+            workspaceMonthlyIncludedUsd=workspace_monthly,
+            workspaceUsedUsd=workspace_used,
+            workspacePeriodStart=period_start,
+            workspacePeriodEnd=period_end,
+            webSearchUsed=web_used,
+            webSearchCap=web_cap,
         )
 
     async def check_ai_access(self, user_id: str, openrouter_token: str | None = None) -> bool:

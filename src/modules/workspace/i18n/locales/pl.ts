@@ -21,6 +21,7 @@ export const workspacePl = {
       processingResult: 'Przetwarzam wynik…',
       loadingSession: 'Ładowanie sesji…',
       placeholder: 'np. Pokaż otwarte PR w org/repo',
+      placeholderShort: 'Zadaj pytanie…',
       send: 'Wyślij',
       newChat: 'Nowy czat',
       showSessions: 'Sesje',

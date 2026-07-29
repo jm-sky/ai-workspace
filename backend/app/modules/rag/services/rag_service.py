@@ -16,6 +16,7 @@ from app.modules.rag.schemas import (
 )
 from app.modules.rag.types import RagSourceType, Reranker, RetrievalAcl, resolve_reranker
 from app.modules.tenants.service import TenantContext
+from app.modules.usage.embedding_factory import create_embedding_service
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,15 @@ class RagService:
         """Embed + persist chunks for a pending document; flips status to
         `ready`/`failed`. Intended to run outside the HTTP request cycle."""
         try:
-            embedder = self._embedder()
+            tenant_ctx = TenantContext(
+                user_id=user_id,
+                tenant_id=tenant_id,
+                tenant_role="member",
+            )
+            if self._embedding is not None:
+                embedder = self._embedding
+            else:
+                embedder = await create_embedding_service(self.db, tenant_ctx=tenant_ctx)
             embeddings = await embedder.embed_batch(chunks)
             for index, (piece, embedding) in enumerate(zip(chunks, embeddings, strict=True)):
                 await self.repo.insert_chunk(

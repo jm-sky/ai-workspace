@@ -21,6 +21,7 @@ export const workspaceEn = {
       processingResult: 'Processing result…',
       loadingSession: 'Loading session…',
       placeholder: 'e.g. List my open PRs in org/repo',
+      placeholderShort: 'Ask anything…',
       send: 'Send',
       newChat: 'New chat',
       showSessions: 'Sessions',

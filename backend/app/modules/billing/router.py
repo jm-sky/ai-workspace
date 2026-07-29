@@ -7,6 +7,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.modules.agent.dependencies import AgentTenantContext
 from app.modules.auth.db_models import UserDB
 from app.modules.auth.dependencies import AdminUser, CurrentUser
 
@@ -305,7 +306,9 @@ async def update_openrouter_token(
 )
 async def get_subscription_limits(
     current_user: CurrentUser,
+    tenant_ctx: AgentTenantContext,
     billing_service: BillingServiceDep,
+    db: AsyncSession = Depends(get_db),
 ) -> SubscriptionLimitsResponse:
     """
     Get feature limits for user's subscription plan.
@@ -314,7 +317,12 @@ async def get_subscription_limits(
         Subscription limits including AI tokens, storage, and feature flags
     """
     try:
-        return await billing_service.get_subscription_limits(current_user.id)
+        return await billing_service.get_subscription_limits(
+            current_user.id,
+            tenant_id=tenant_ctx.tenant_id,
+            team_id=tenant_ctx.team_id,
+            db=db,
+        )
     except SubscriptionNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

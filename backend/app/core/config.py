@@ -689,6 +689,16 @@ class AISettings(BaseSettings):
         validation_alias="OPENROUTER_BASE_URL",
         description="OpenRouter base URL",
     )
+    openrouter_app_url: str = Field(
+        default="",
+        validation_alias="OPENROUTER_APP_URL",
+        description="HTTP-Referer for OpenRouter app attribution",
+    )
+    openrouter_app_title: str = Field(
+        default="AI Workspace",
+        validation_alias="OPENROUTER_APP_TITLE",
+        description="X-OpenRouter-Title for OpenRouter app attribution",
+    )
     token_encryption_key: str = Field(
         default="",
         validation_alias="AI_TOKEN_ENCRYPTION_KEY",

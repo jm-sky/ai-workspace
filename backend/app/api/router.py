@@ -17,6 +17,7 @@ from app.modules.wiki.router import router as wiki_router
 from app.modules.settings.router import router as settings_router
 from app.modules.teams.router import router as teams_router
 from app.modules.tenants.router import router as tenants_router
+from app.modules.usage.router import router as usage_router
 from app.modules.users.router import router as users_router
 from app.modules.workspace_config.router import router as workspace_config_router
 
@@ -65,6 +66,7 @@ api_router.include_router(integrations_router)
 api_router.include_router(memory_router)
 api_router.include_router(rag_router)
 api_router.include_router(wiki_router)
+api_router.include_router(usage_router)
 
 try:
     from app.modules.two_factor.router import router as two_factor_router

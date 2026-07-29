@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Send } from 'lucide-vue-next'
+import { useMediaQuery } from '@vueuse/core'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
@@ -43,6 +44,13 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const isSmUp = useMediaQuery('(min-width: 640px)')
+const inputPlaceholder = computed(() =>
+  isSmUp.value
+    ? t('workspace.chat.placeholder')
+    : t('workspace.chat.placeholderShort'),
+)
+
 const previewOpen = ref(false)
 const previewItem = ref<IChatAttachment | null>(null)
 const isDragging = ref(false)
@@ -132,7 +140,7 @@ const onDrop = (event: DragEvent) => {
         <Textarea
           id="chat-composer-input"
           v-model="input"
-          :placeholder="t('workspace.chat.placeholder')"
+          :placeholder="inputPlaceholder"
           :disabled="isLoading"
           rows="1"
           class="min-h-9 rounded-full min-w-0 flex-1 resize-none border-0 bg-transparent px-2 py-1.5 shadow-none focus-visible:ring-0 dark:bg-transparent"

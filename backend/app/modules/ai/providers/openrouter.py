@@ -5,11 +5,11 @@ This is the official recommended approach from OpenRouter documentation.
 
 from typing import Any, cast
 
-from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam
 
 from app.core.config import settings
 from app.modules.ai.exceptions import OpenRouterError, TokenValidationError
+from app.modules.usage.openrouter_client import create_openrouter_client
 
 from .base import AIProvider, ChatResponse
 
@@ -33,7 +33,7 @@ class OpenRouterProvider(AIProvider):
         if not self.api_key:
             raise OpenRouterError("OpenRouter API key not configured")
 
-        self.client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        self.client = create_openrouter_client(api_key=self.api_key)
 
     async def chat(
         self,

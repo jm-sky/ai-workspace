@@ -7,6 +7,7 @@ import AuthenticatedLayout from '@/layouts/AuthenticatedLayout.vue'
 import type { BillingInterval } from '../types'
 import PlanCard from '../components/PlanCard.vue'
 import SubscriptionCard from '../components/SubscriptionCard.vue'
+import WorkspaceUsageCard from '../components/WorkspaceUsageCard.vue'
 import { useSubscription } from '../composables/useSubscription'
 import { BillingRouteIcon } from '../routes'
 import { PLAN_FEATURES } from '../types'
@@ -33,6 +34,7 @@ const handleSelectPlan = async (planTier: 'pro' | 'pro_plus') => {
       <div class="grid gap-8 lg:grid-cols-3">
         <div class="lg:col-span-1 space-y-6">
           <SubscriptionCard />
+          <WorkspaceUsageCard />
         </div>
 
         <div class="lg:col-span-2">

@@ -19,6 +19,8 @@ class ConfigKey(StrEnum):
     RAG_ENABLED = "rag_enabled"
     TOOLS_ENABLED = "tools_enabled"
     WEB_SEARCH_ENABLED = "web_search_enabled"
+    MONTHLY_COST_CAP_USD = "monthly_cost_cap_usd"
+    MONTHLY_WEB_SEARCH_CAP = "monthly_web_search_cap"
 
 
 class EffectiveWorkspaceConfig(BaseModel):
@@ -32,6 +34,8 @@ class EffectiveWorkspaceConfig(BaseModel):
     ragEnabled: bool = False
     toolsEnabled: bool = True
     webSearchEnabled: bool = True
+    monthlyCostCapUsd: float | None = None
+    monthlyWebSearchCap: int | None = None
 
 
 class ConfigEntryRequest(BaseModel):

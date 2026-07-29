@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolParam
 from pydantic import ValidationError
 
@@ -20,6 +19,9 @@ from app.modules.agent.exceptions import (
 from app.modules.agent.schemas import ChartBlockData, SourcesBlockData
 from app.modules.agent.tools.base import AgentToolRegistry
 from app.modules.ai.utils.models_config import calculate_cost
+from app.modules.usage.openrouter_client import create_openrouter_client
+from app.modules.usage.recorder import UsageRecorder, UsageRecordContext, extract_cost_from_usage
+from app.modules.usage.types import UsagePurpose
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,8 @@ class AgentLoopService:
         max_steps: int | None = None,
         agent_key: str = "github-workspace",
         server_web_tools: bool = False,
+        usage_recorder: UsageRecorder | None = None,
+        usage_ctx: UsageRecordContext | None = None,
     ):
         key = api_key or settings.ai.openrouter_api_key
         if not key:
@@ -69,10 +73,9 @@ class AgentLoopService:
         self.agent_key = agent_key
         self.server_web_tools = server_web_tools
         self.max_steps = max_steps or settings.ai.agent_max_steps
-        self.client = AsyncOpenAI(
-            api_key=key,
-            base_url=settings.ai.openrouter_base_url,
-        )
+        self.usage_recorder = usage_recorder
+        self.usage_ctx = usage_ctx
+        self.client = create_openrouter_client(api_key=key)
 
     async def run(
         self,
@@ -122,6 +125,7 @@ class AgentLoopService:
 
         prompt_tokens = 0
         completion_tokens = 0
+        run_cost_usd = 0.0
         steps_trace: list[dict[str, Any]] = []
         step_index = 0
 
@@ -140,9 +144,32 @@ class AgentLoopService:
             response = await self.client.chat.completions.create(**create_kwargs)
 
             usage = response.usage
+            turn_prompt = 0
+            turn_completion = 0
             if usage:
-                prompt_tokens += usage.prompt_tokens or 0
-                completion_tokens += usage.completion_tokens or 0
+                turn_prompt = usage.prompt_tokens or 0
+                turn_completion = usage.completion_tokens or 0
+                prompt_tokens += turn_prompt
+                completion_tokens += turn_completion
+
+            if self.usage_recorder and self.usage_ctx:
+                billed = await self.usage_recorder.record_chat_completion(
+                    self.usage_ctx,
+                    purpose=UsagePurpose.AGENT_CHAT,
+                    model=self.model,
+                    usage=usage,
+                    response=response,
+                    metadata={"iteration": iteration},
+                )
+                run_cost_usd += billed
+            else:
+                _, billed = extract_cost_from_usage(
+                    usage,
+                    model=self.model,
+                    prompt_tokens=turn_prompt,
+                    completion_tokens=turn_completion,
+                )
+                run_cost_usd += billed
 
             choice = response.choices[0]
             assistant_message = choice.message
@@ -176,6 +203,12 @@ class AgentLoopService:
             # sources block all still work.
             server_sources = _harvest_url_citations(assistant_payload)
             if server_sources:
+                if self.usage_recorder and self.usage_ctx:
+                    await self.usage_recorder.record_web_search_op(
+                        self.usage_ctx,
+                        count=len(server_sources),
+                        metadata={"serverSide": True},
+                    )
                 steps_trace.append(
                     {
                         "stepIndex": step_index,
@@ -204,7 +237,9 @@ class AgentLoopService:
             if not tool_calls:
                 content = assistant_message.content or ""
                 total_tokens = prompt_tokens + completion_tokens
-                cost = calculate_cost(self.model, prompt_tokens, completion_tokens)
+                cost = run_cost_usd if run_cost_usd > 0 else calculate_cost(
+                    self.model, prompt_tokens, completion_tokens
+                )
                 blocks = _build_blocks_from_trace(steps_trace, content, agent_key=self.agent_key)
                 yield AgentLoopEvent(
                     event="run_complete",
