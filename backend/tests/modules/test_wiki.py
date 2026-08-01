@@ -285,6 +285,8 @@ def _mock_ingest_repo(service: WikiService, *, fake_create_page, get_by_slug=Non
     service.rag_repo = MagicMock()
     service.rag_repo.create_document = AsyncMock(return_value=MagicMock(id="doc-1"))
     service.rag_repo.delete_document = AsyncMock(return_value=True)
+    service.rag_repo.set_document_status = AsyncMock()
+    service._index_page_chunks = AsyncMock()
 
 
 @pytest.mark.asyncio
@@ -545,6 +547,8 @@ async def test_inbox_page_stays_in_inbox():
     service.rag_repo = MagicMock()
     service.rag_repo.create_document = AsyncMock(return_value=MagicMock(id="doc-inbox"))
     service.rag_repo.delete_document = AsyncMock(return_value=True)
+    service.rag_repo.set_document_status = AsyncMock()
+    service._index_page_chunks = AsyncMock()
 
     page = await service.create_page(
         tenant_ctx=_tenant_ctx(),
@@ -704,6 +708,8 @@ async def test_rag_bridge_sync_on_create():
     service.rag_repo = MagicMock()
     service.rag_repo.create_document = AsyncMock(return_value=rag_doc)
     service.rag_repo.delete_document = AsyncMock(return_value=True)
+    service.rag_repo.set_document_status = AsyncMock()
+    service._index_page_chunks = AsyncMock()
 
     await service.create_page(
         tenant_ctx=_tenant_ctx(),
@@ -717,6 +723,8 @@ async def test_rag_bridge_sync_on_create():
     create_kwargs = service.rag_repo.create_document.await_args.kwargs
     assert create_kwargs["source_type"] == "wiki"
     assert create_kwargs["source_ref"] == page.id
+    assert create_kwargs["status"] == "pending"
+    service._index_page_chunks.assert_awaited()
 
 
 @pytest.mark.asyncio

@@ -79,6 +79,7 @@ COMMAND_GROUPS = {
         "name": "Document RAG",
         "commands": {
             "reembed": "Re-embed document_chunks behind the current AI_EMBEDDING_VERSION",
+            "reindex-wiki": "Re-chunk + re-embed active wiki pages into document_chunks",
         },
     },
     "billing": {

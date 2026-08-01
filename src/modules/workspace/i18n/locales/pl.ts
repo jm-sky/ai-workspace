@@ -25,6 +25,9 @@ export const workspacePl = {
       send: 'Wyślij',
       newChat: 'Nowy czat',
       showSessions: 'Sesje',
+      copyBlock: 'Kopiuj',
+      copied: 'Skopiowano do schowka',
+      copyFailed: 'Nie udało się skopiować',
       errors: {
         genericTitle: 'Coś poszło nie tak',
         genericDescription: 'Asystent nie mógł dokończyć żądania. Spróbuj ponownie lub sprawdź ustawienia workspace.',
@@ -83,6 +86,16 @@ export const workspacePl = {
           gmail: 'Gmail',
           knowledge: 'Wiedza',
           web: 'Szukaj w sieci',
+        },
+      },
+      mic: {
+        start: 'Rozpocznij dyktowanie głosowe',
+        stop: 'Zatrzymaj dyktowanie głosowe',
+        errors: {
+          notAllowed: 'Brak dostępu do mikrofonu. Zezwól na dostęp do mikrofonu, aby użyć dyktowania.',
+          noSpeech: 'Nie wykryto mowy. Spróbuj ponownie.',
+          network: 'Dyktowanie nie powiodło się z powodu błędu sieci.',
+          generic: 'Dyktowanie nie powiodło się. Spróbuj ponownie.',
         },
       },
     },

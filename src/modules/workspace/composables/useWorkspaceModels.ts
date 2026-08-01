@@ -5,7 +5,10 @@ import {
   getEffectiveWorkspaceConfig,
   setUserDefaultModel,
 } from '@/modules/workspace/services/workspaceConfigApiService'
-import type { IAiModel } from '@/modules/workspace/types/workspaceConfig'
+import type {
+  IAiModel,
+  IEffectiveWorkspaceConfig,
+} from '@/modules/workspace/types/workspaceConfig'
 
 export const workspaceModelsQueryKeys = {
   all: ['workspace-models'] as const,
@@ -14,6 +17,44 @@ export const workspaceModelsQueryKeys = {
 }
 
 const selectedModelId = ref<string | null>(null)
+
+/** Fallback when no persisted default is present in the catalog. */
+export function pickDefaultModelId(
+  models: IAiModel[],
+  defaultModel?: string | null,
+): string | null {
+  if (models.length === 0) return null
+  if (defaultModel && models.some((m) => m.id === defaultModel)) {
+    return defaultModel
+  }
+  const recommended = models.find((m) => m.recommended)
+  return recommended?.id ?? models[0]?.id ?? null
+}
+
+/**
+ * Resolve which model id the picker should show.
+ *
+ * Waits for workspace config before falling back to "recommended", otherwise a
+ * fast catalog response would pin Claude and ignore the saved default on refresh.
+ */
+export function resolveSelectedModelId(opts: {
+  models: IAiModel[]
+  defaultModel?: string | null
+  configFetched: boolean
+  currentSelectedId: string | null
+}): string | null {
+  const { models, defaultModel, configFetched, currentSelectedId } = opts
+  if (models.length === 0 || !configFetched) {
+    return currentSelectedId
+  }
+  if (defaultModel && models.some((m) => m.id === defaultModel)) {
+    return defaultModel
+  }
+  if (currentSelectedId && models.some((m) => m.id === currentSelectedId)) {
+    return currentSelectedId
+  }
+  return pickDefaultModelId(models, defaultModel)
+}
 
 export function useWorkspaceModels() {
   const queryClient = useQueryClient()
@@ -44,22 +85,19 @@ export function useWorkspaceModels() {
     return filtered
   })
 
-  const pickDefaultModelId = (models: IAiModel[], defaultModel?: string | null): string | null => {
-    if (models.length === 0) return null
-    if (defaultModel && models.some((m) => m.id === defaultModel)) {
-      return defaultModel
-    }
-    const recommended = models.find((m) => m.recommended)
-    return recommended?.id ?? models[0]?.id ?? null
-  }
-
   watch(
-    [() => configQuery.data.value?.defaultModel, allowedModels],
-    ([defaultModel, models]) => {
-      if (selectedModelId.value && models.some((m) => m.id === selectedModelId.value)) {
-        return
-      }
-      selectedModelId.value = pickDefaultModelId(models, defaultModel)
+    [
+      () => configQuery.data.value?.defaultModel,
+      allowedModels,
+      () => configQuery.isFetched.value,
+    ],
+    ([defaultModel, models, configFetched]) => {
+      selectedModelId.value = resolveSelectedModelId({
+        models,
+        defaultModel,
+        configFetched,
+        currentSelectedId: selectedModelId.value,
+      })
     },
     { immediate: true },
   )
@@ -72,15 +110,24 @@ export function useWorkspaceModels() {
 
   const selectModelMutation = useMutation({
     mutationFn: (modelId: string) => setUserDefaultModel(modelId),
-    onSuccess: async (_data, modelId) => {
-      selectedModelId.value = modelId
+    onError: async () => {
       await queryClient.invalidateQueries({ queryKey: workspaceModelsQueryKeys.config() })
     },
   })
 
   const selectModel = async (modelId: string) => {
     selectedModelId.value = modelId
-    await selectModelMutation.mutateAsync(modelId)
+    // Keep the watch in sync with the optimistic choice until refetch lands.
+    queryClient.setQueryData<IEffectiveWorkspaceConfig>(
+      workspaceModelsQueryKeys.config(),
+      (old) => (old ? { ...old, defaultModel: modelId } : old),
+    )
+    try {
+      await selectModelMutation.mutateAsync(modelId)
+      await queryClient.invalidateQueries({ queryKey: workspaceModelsQueryKeys.config() })
+    } catch {
+      // onError already invalidates; selection will snap back to persisted default
+    }
   }
 
   const getSelectedModelId = () => selectedModelId.value ?? undefined

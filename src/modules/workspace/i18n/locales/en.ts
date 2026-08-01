@@ -25,6 +25,9 @@ export const workspaceEn = {
       send: 'Send',
       newChat: 'New chat',
       showSessions: 'Sessions',
+      copyBlock: 'Copy',
+      copied: 'Copied to clipboard',
+      copyFailed: 'Failed to copy',
       errors: {
         genericTitle: 'Something went wrong',
         genericDescription: 'The assistant could not complete your request. Try again or check your workspace settings.',
@@ -83,6 +86,16 @@ export const workspaceEn = {
           gmail: 'Gmail',
           knowledge: 'Knowledge',
           web: 'Web search',
+        },
+      },
+      mic: {
+        start: 'Start voice input',
+        stop: 'Stop voice input',
+        errors: {
+          notAllowed: 'Microphone access denied. Allow microphone access to use voice input.',
+          noSpeech: 'No speech detected. Try again.',
+          network: 'Voice input failed due to a network error.',
+          generic: 'Voice input failed. Try again.',
         },
       },
     },

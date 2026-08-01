@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { useMediaQuery } from '@vueuse/core'
-import { Send } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { Mic, Send, Square } from 'lucide-vue-next'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { toast } from 'vue-sonner'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import ChatAttachmentChip from '@/modules/workspace/components/ChatAttachmentChip.vue'
 import ChatAttachmentPreview from '@/modules/workspace/components/ChatAttachmentPreview.vue'
 import ChatComposerPlusMenu from '@/modules/workspace/components/ChatComposerPlusMenu.vue'
 import ChatContextChip from '@/modules/workspace/components/ChatContextChip.vue'
+import { useSpeechToText } from '@/modules/workspace/composables/useSpeechToText'
 import type { IChatAttachment } from '@/modules/workspace/types/attachments'
 import type {
   ComposerContextProvider,
@@ -45,6 +47,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const isSmUp = useMediaQuery('(min-width: 640px)')
+const isCoarsePointer = useMediaQuery('(pointer: coarse)')
 const inputPlaceholder = computed(() =>
   isSmUp.value
     ? t('workspace.chat.placeholder')
@@ -73,11 +76,48 @@ const handleSubmit = () => {
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
+  // Touch devices have no convenient Shift+Enter — let Enter insert a
+  // newline there and require the Send button, matching Claude Code/ChatGPT.
+  if (isCoarsePointer.value) return
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
     handleSubmit()
   }
 }
+
+const appendTranscript = (text: string) => {
+  const trimmed = text.trim()
+  if (!trimmed) return
+  input.value = input.value.trim().length > 0 ? `${input.value.trim()} ${trimmed}` : trimmed
+}
+
+const {
+  isSupported: isMicSupported,
+  isListening: isMicListening,
+  error: micError,
+  start: startListening,
+  stop: stopListening,
+} = useSpeechToText(appendTranscript)
+
+const toggleMic = () => {
+  if (isMicListening.value) {
+    stopListening()
+  } else {
+    startListening()
+  }
+}
+
+const micErrorKeys = {
+  'not-allowed': 'notAllowed',
+  'no-speech': 'noSpeech',
+  network: 'network',
+  unknown: 'generic',
+} as const
+
+watch(micError, (code) => {
+  if (!code) return
+  toast.error(t(`workspace.composer.mic.errors.${micErrorKeys[code]}`))
+})
 
 const openPreview = (item: IChatAttachment) => {
   previewItem.value = item
@@ -148,6 +188,27 @@ const onDrop = (event: DragEvent) => {
           @keydown="handleKeydown"
           @paste="onPaste"
         />
+        <Button
+          v-if="isMicSupported"
+          type="button"
+          variant="ghost"
+          size="icon"
+          class="shrink-0 rounded-xl"
+          :class="isMicListening ? 'text-destructive' : ''"
+          :disabled="isLoading"
+          :title="t(isMicListening ? 'workspace.composer.mic.stop' : 'workspace.composer.mic.start')"
+          :aria-label="t(isMicListening ? 'workspace.composer.mic.stop' : 'workspace.composer.mic.start')"
+          @click="toggleMic"
+        >
+          <Square
+            v-if="isMicListening"
+            class="size-4 animate-pulse"
+          />
+          <Mic
+            v-else
+            class="size-4"
+          />
+        </Button>
         <Button
           type="submit"
           class="shrink-0 rounded-xl aspect-square p-2"

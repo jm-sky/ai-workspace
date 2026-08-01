@@ -52,5 +52,9 @@ Ustalenie po re-weryfikacji vs ai-kancelaria (po `git pull`). Memory injection *
 | 026 | [2026-07-22--026--oauth-session-and-state-backport.md](2026-07-22--026--oauth-session-and-state-backport.md) | Backport: OAuth session/2FA parity + CSRF state store (gear-stack 036+037) | `done` |
 | 027 | [2026-07-11--027--chat-tool-memory-step-disappears.md](2026-07-11--027--chat-tool-memory-step-disappears.md) | Chat — krok narzędzia (memory) znika po zakończeniu runu | `todo` |
 | 028 | [2026-07-29--028--gmail-rich-blocks-markdown.md](2026-07-29--028--gmail-rich-blocks-markdown.md) | Gmail → rich blocks (card/table) + styl Markdown w czacie | `done` |
+| 029 | [2026-07-29--029--wiki-rwd-mobile.md](2026-07-29--029--wiki-rwd-mobile.md) | Wiki — RWD / czytelność na mobile | `todo` |
+| 030 | [2026-08-01--030--copy-to-clipboard-code-quote-blocks.md](2026-08-01--030--copy-to-clipboard-code-quote-blocks.md) | Brak przycisku copy-to-clipboard na blokach code/quote/pre w odpowiedziach LLM | `todo` |
+| 031 | [2026-08-01--031--mobile-enter-sends-instead-of-newline.md](2026-08-01--031--mobile-enter-sends-instead-of-newline.md) | Enter na telefonie wysyła wiadomość zamiast nowego wiersza | `todo` |
+| 032 | [2026-08-01--032--no-stop-and-no-queue-during-streaming.md](2026-08-01--032--no-stop-and-no-queue-during-streaming.md) | Brak Stop i brak wysyłki/kolejki podczas myślenia LLM | `todo` |
 
 When adding a new issue: pick next `NNN`, create `YYYY-MM-DD--NNN--slug.md`, add a row here.
