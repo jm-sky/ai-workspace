@@ -88,6 +88,16 @@ export const workspaceEn = {
           web: 'Web search',
         },
       },
+      mic: {
+        start: 'Start voice input',
+        stop: 'Stop voice input',
+        errors: {
+          notAllowed: 'Microphone access denied. Allow microphone access to use voice input.',
+          noSpeech: 'No speech detected. Try again.',
+          network: 'Voice input failed due to a network error.',
+          generic: 'Voice input failed. Try again.',
+        },
+      },
     },
     blocks: {
       sources: {

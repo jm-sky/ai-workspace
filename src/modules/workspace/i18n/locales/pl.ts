@@ -88,6 +88,16 @@ export const workspacePl = {
           web: 'Szukaj w sieci',
         },
       },
+      mic: {
+        start: 'Rozpocznij dyktowanie głosowe',
+        stop: 'Zatrzymaj dyktowanie głosowe',
+        errors: {
+          notAllowed: 'Brak dostępu do mikrofonu. Zezwól na dostęp do mikrofonu, aby użyć dyktowania.',
+          noSpeech: 'Nie wykryto mowy. Spróbuj ponownie.',
+          network: 'Dyktowanie nie powiodło się z powodu błędu sieci.',
+          generic: 'Dyktowanie nie powiodło się. Spróbuj ponownie.',
+        },
+      },
     },
     blocks: {
       sources: {
