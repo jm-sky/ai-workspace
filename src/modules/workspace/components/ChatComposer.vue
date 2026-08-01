@@ -45,6 +45,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const isSmUp = useMediaQuery('(min-width: 640px)')
+const isCoarsePointer = useMediaQuery('(pointer: coarse)')
 const inputPlaceholder = computed(() =>
   isSmUp.value
     ? t('workspace.chat.placeholder')
@@ -73,6 +74,9 @@ const handleSubmit = () => {
 }
 
 const handleKeydown = (event: KeyboardEvent) => {
+  // Touch devices have no convenient Shift+Enter — let Enter insert a
+  // newline there and require the Send button, matching Claude Code/ChatGPT.
+  if (isCoarsePointer.value) return
   if (event.key === 'Enter' && !event.shiftKey) {
     event.preventDefault()
     handleSubmit()
