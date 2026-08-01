@@ -25,6 +25,9 @@ export const workspacePl = {
       send: 'Wyślij',
       newChat: 'Nowy czat',
       showSessions: 'Sesje',
+      copyBlock: 'Kopiuj',
+      copied: 'Skopiowano do schowka',
+      copyFailed: 'Nie udało się skopiować',
       errors: {
         genericTitle: 'Coś poszło nie tak',
         genericDescription: 'Asystent nie mógł dokończyć żądania. Spróbuj ponownie lub sprawdź ustawienia workspace.',

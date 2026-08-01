@@ -25,6 +25,9 @@ export const workspaceEn = {
       send: 'Send',
       newChat: 'New chat',
       showSessions: 'Sessions',
+      copyBlock: 'Copy',
+      copied: 'Copied to clipboard',
+      copyFailed: 'Failed to copy',
       errors: {
         genericTitle: 'Something went wrong',
         genericDescription: 'The assistant could not complete your request. Try again or check your workspace settings.',
